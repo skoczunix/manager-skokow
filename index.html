@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Manager Skoków - ULTIMATE SECURE V20 (ReadOnly Fix)</title>
+    <title>Pro Manager Skoków - ULTIMATE SECURE V22 (Live Sync & Records Fix)</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -19,6 +19,9 @@
         table { width: 100%; border-collapse: collapse; margin-top: 15px; table-layout: fixed; }
         th, td { border: 1px solid #eee; padding: 10px; text-align: center; vertical-align: middle; word-wrap: break-word; font-size: 0.9rem; }
         th { background: var(--primary); color: white; }
+        
+        /* Styl zaznaczania dla admina */
+        td[contenteditable="true"]:focus { outline: 2px solid var(--gold); background: #fffdf0; }
         
         .col-rank { width: 55px; }
         .col-name { width: auto; }
@@ -50,13 +53,9 @@
         .stat-bar-container { background: #eee; border-radius: 4px; height: 12px; width: 100%; margin-top: 5px; overflow: hidden; }
         .stat-bar-fill { background: var(--primary); height: 100%; }
 
-        /* Login Modal Styles */
         .login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 10000; display:flex; justify-content:center; align-items:center; }
         .login-box { background: white; padding: 30px; border-radius: 10px; width: 300px; text-align: center; }
         .login-input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        
-        /* STRICT MODE */
-        .read-only-text { pointer-events: none; }
     </style>
 </head>
 <body>
@@ -136,7 +135,7 @@
     <div id="page-results" class="hidden">
         <button class="btn" style="background:#666; color:white;" onclick="showPage('page-calendar')">← Powrót</button>
         <h2 id="current-comp-title">...</h2>
-        <div id="live-to-beat" class="live-info">Oczekiwanie...</div>
+        <div id="live-to-beat" class="live-info">Oczekiwanie na decyzję sędziów...</div>
         <div class="admin-only hidden card" style="display:flex; gap:20px; align-items:center; background:#fff9e6; border:1px solid orange;">
             <div>Limit Q: <input type="number" id="q-limit-input" value="30" style="width:60px;" oninput="updateQLimit(this.value)"></div>
             <div id="global-checkboxes"></div>
@@ -172,8 +171,8 @@
         <h2>Rekordy Historyczne</h2>
         <div class="admin-only hidden card">
             <div style="display:flex; gap:10px;">
-                <input type="text" class="search-input" id="rec-name-in" placeholder="Kto">
-                <input type="text" class="search-input" id="rec-text-in" placeholder="Treść" style="flex:2">
+                <input type="text" class="search-input" id="rec-name-in" placeholder="Kto" style="width: 150px; flex-shrink: 0;">
+                <input type="text" class="search-input" id="rec-text-in" placeholder="Treść rekordu..." style="flex-grow: 1;">
                 <button class="btn btn-add" onclick="addSpecialRecord()">DODAJ</button>
             </div>
         </div>
@@ -221,6 +220,12 @@
     
     // AUTHENTICATION LISTENER
     db.ref('.info/connected').on('value', s => { document.getElementById('status').innerHTML = s.val() ? "Status: 🟢 Połączono" : "Status: 🔴 Rozłączono"; });
+    
+    // LIVE SYNC LISTENER (Wszyscy widzą co ustawił admin)
+    db.ref('status/liveToBeat').on('value', s => {
+        const msg = s.val() || "Oczekiwanie na decyzję sędziów...";
+        document.getElementById('live-to-beat').innerText = msg;
+    });
 
     auth.onAuthStateChanged(user => {
         if (user) {
@@ -259,6 +264,8 @@
         document.querySelectorAll('.admin-only, .btn-add').forEach(el => el.classList.toggle('hidden', !isAdmin));
         if(activeSeasonId) db.ref('kalendarze/'+activeSeasonId).once('value', s => renderCalendar(Object.values(s.val()||{})));
         db.ref('skocznie').once('value', s => refreshHillList(Object.values(s.val()||{})));
+        // Refresh records to show/hide delete buttons
+        db.ref('osiagniecia_specjalne').once('value', s => refreshRecordsList(s.val()));
         if(activeCompId) refreshResultsView();
     }
 
@@ -473,10 +480,10 @@
                 }
 
                 // SECURE SCORE RENDERING
-                const editAttr = isAdmin ? 'contenteditable="true"' : 'tabindex="0"';
+                const editAttr = isAdmin ? 'contenteditable="true"' : '';
                 
-                let row = `<tr><td>${r.rank}${isQ}</td><td>${nameCell}</td><td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
-                if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
+                let row = `<tr><td>${r.rank}${isQ}</td><td>${nameCell}</td><td ${editAttr} onfocus="adminCalcToBeat('${r.id}','s1',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
+                if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="adminCalcToBeat('${r.id}','s2',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
                 if(activeType==='msl') row += `<td ${editAttr} onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td><td ${editAttr} onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
                 
                 b.innerHTML += row + `<td class="col-total">${(parseFloat(r.total)||0).toFixed(1)}</td><td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
@@ -493,14 +500,26 @@
     function addSkoczek() { const n=prompt("Imię:"); if(n) db.ref('skoczkowie/'+Date.now()).set({id: Date.now().toString(), name:n}); }
     function createGlobalStanding() { const n = document.getElementById('global-st-name').value, t = document.getElementById('global-st-type').value; if(n) db.ref('global_klasyfikacje').push({name:n, type:t}).then(()=>document.getElementById('global-st-name').value=''); }
     function addSpecialRecord() { const n=document.getElementById('rec-name-in').value, t=document.getElementById('rec-text-in').value; if(n && t) db.ref('osiagniecia_specjalne').push({name:n, text:t}).then(()=>document.getElementById('rec-text-in').value=''); }
-    function calcRes(rid, f, v) { if(!isAdmin) return; let val = v.trim()==='-'?'-':parseFloat(v.replace(',','.'))||0; db.ref(`wyniki/${activeCompId}/${rid}`).update({[f]:val}).then(()=>{ db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s=>{ let d=s.val(), sum=0; ['s1','s2','s3','s4'].forEach(x=>{ if(d[x]!=='-' && d[x]!==undefined) sum+=parseFloat(d[x]||0); }); db.ref(`wyniki/${activeCompId}/${rid}`).update({total:sum}); }); }); }
-   function liveToBeat(rid, ser, leader) { 
-    db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { 
-        const d = s.val(); if(!d) return; 
-        let p = (ser==='s2'?parseFloat(d.s1||0):0); 
-        document.getElementById('live-to-beat').innerText = `Aby prowadzić: ${(leader-p).toFixed(1)} m`; 
-    }); 
-}
+    
+    // SAVE FUNCTION (SECURE)
+    function calcRes(rid, f, v) { 
+        if(!isAdmin) return; // SECURITY CHECK
+        let val = v.trim()==='-'?'-':parseFloat(v.replace(',','.'))||0; 
+        db.ref(`wyniki/${activeCompId}/${rid}`).update({[f]:val}).then(()=>{ db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s=>{ let d=s.val(), sum=0; ['s1','s2','s3','s4'].forEach(x=>{ if(d[x]!=='-' && d[x]!==undefined) sum+=parseFloat(d[x]||0); }); db.ref(`wyniki/${activeCompId}/${rid}`).update({total:sum}); }); }); 
+    }
+
+    // LIVE TO BEAT - ADMIN SENDS, EVERYONE SEES
+    function adminCalcToBeat(rid, ser, leader) { 
+        if(!isAdmin) return; 
+        db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { 
+            const d = s.val(); if(!d) return; 
+            let p = (ser==='s2'?parseFloat(d.s1||0):0); 
+            const needed = (leader-p).toFixed(1);
+            db.ref('status/liveToBeat').set(`Aby prowadzić: ${needed} m (Zawodnik: ${d.name})`);
+        }); 
+    }
+    
+    function updateQLimit(v) { db.ref(`kalendarze/${activeSeasonId}/${activeCompId}/qLimit`).set(parseInt(v)); }
     function toggleStatList(id) { const el = document.getElementById(id); el.style.display = (el.style.display==='block')?'none':'block'; }
 
     // STRICT RENDERING: CALENDAR
@@ -519,18 +538,27 @@
         }); 
     }
 
+    // RECORDS RENDERING (WITH DELETE BTN)
+    db.ref('osiagniecia_specjalne').on('value', s => refreshRecordsList(s.val()));
+
+    function refreshRecordsList(data) {
+        const d = document.getElementById('global-records-list');
+        d.innerHTML = '';
+        if(!data) return;
+        
+        Object.entries(data).forEach(([key, r]) => {
+            const delBtn = isAdmin ? `<button class="btn btn-del" style="margin-left:auto" onclick="db.ref('osiagniecia_specjalne/${key}').remove()">X</button>` : '';
+            d.innerHTML += `<div class="card" style="padding:10px; display:flex; align-items:center;">
+                <span>⭐ <b>${r.name}</b>: ${r.text}</span>
+                ${delBtn}
+            </div>`;
+        });
+    }
+
     db.ref('sezony').on('value', s => { const list = document.getElementById('seasons-list'); list.innerHTML = ''; Object.values(s.val()||{}).forEach(sez => list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><b>${sez.name}</b><div><button class="btn" onclick="openSeason('${sez.id}','${sez.name}')">Otwórz</button> <button class="btn btn-del admin-only ${isAdmin?'':'hidden'}" onclick="db.ref('sezony/${sez.id}').remove()">X</button></div></div>`); });
     db.ref('skoczkowie').on('value', s => { globalSkoczkowie=Object.values(s.val()||{}); const b=document.getElementById('skoczkowie-list'); if(b) { b.innerHTML=''; globalSkoczkowie.forEach(sk=>b.innerHTML+=`<tr><td>${sk.name}</td><td><button class="btn" onclick="openProfile('${sk.name}')">Profil</button></td><td class="admin-only ${isAdmin?'':'hidden'}"><button class="btn-del" onclick="db.ref('skoczkowie/${sk.id}').remove()">X</button></td></tr>`); } });
     db.ref('skocznie').on('value', s => { globalHills = Object.values(s.val()||{}); refreshHillList(globalHills); });
     
-    db.ref('osiagniecia_specjalne').on('value', s => {
-        const d = document.getElementById('global-records-list');
-        d.innerHTML = '';
-        Object.values(s.val()||{}).forEach(r => {
-            d.innerHTML += `<div class="card" style="padding:10px;">⭐ <b>${r.name}</b>: ${r.text}</div>`;
-        });
-    });
-
     db.ref('global_klasyfikacje').on('value', s => { const adminL = document.getElementById('global-standings-admin-list'); if(adminL) { adminL.innerHTML = ''; Object.entries(s.val()||{}).forEach(([id, st]) => adminL.innerHTML += `<div class="card" style="padding:10px;"><b>${st.name}</b> <button class="btn-del" onclick="db.ref('global_klasyfikacje/${id}').remove()">X</button></div>`); } });
     async function openResults(id, loc, type) { activeCompId = id; activeType = type; document.getElementById('current-comp-title').innerText = loc; showPage('page-results'); refreshResultsView(); const gL = (await db.ref('global_klasyfikacje').once('value')).val() || {}, compD = (await db.ref(`kalendarze/${activeSeasonId}/${id}`).once('value')).val() || {}, checkB = document.getElementById('global-checkboxes'); checkB.innerHTML = ''; Object.entries(gL).forEach(([gid, st]) => { const isC = compD.standings && compD.standings[gid] ? 'checked' : ''; checkB.innerHTML += `<label style="margin-left:10px;"><input type="checkbox" ${isC} onchange="db.ref('kalendarze/${activeSeasonId}/${activeCompId}/standings/${gid}').set(this.checked?true:null)"> ${st.name}</label>`; }); }
     async function refreshStandingsSelection() { const gL = (await db.ref('global_klasyfikacje').once('value')).val() || {}, list = document.getElementById('standings-user-list'); if(!list) return; list.innerHTML = ''; Object.entries(gL).forEach(([gid, st]) => { list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><b>${st.name}</b><button class="btn" style="background:var(--primary); color:white;" onclick="viewStanding('${gid}','${st.name}')">Ranking</button></div>`; }); }
@@ -539,5 +567,3 @@
 </script>
 </body>
 </html>
-
-
