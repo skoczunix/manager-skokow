@@ -517,7 +517,8 @@
             sortedHills.forEach(([loc, count]) => { chartDiv.innerHTML += `<div>${loc} (Wygrane: ${count})<div class="stat-bar-container"><div class="stat-bar-fill" style="width:${Math.min((count/5)*100, 100)}%"></div></div></div>`; });
         } else { chartDiv.innerHTML = 'Brak zwycięstw.'; }
 
-        const myRecs = globalHills.filter(h => h.recKoAuth === name);
+        // Ta nowa wersja dzieli tekst po przecinkach, usuwa spacje i sprawdza czy imię jest na liście
+const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.trim()).includes(name));
         document.getElementById('prof-rec-list').innerHTML = myRecs.length > 0 
             ? myRecs.map(h => `<div>${h.name}: <b>${h.recKoDist}m</b></div>`).join('') 
             : 'Brak rekordów skoczni.';
@@ -666,3 +667,4 @@
 </script>
 </body>
 </html>
+
