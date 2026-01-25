@@ -73,7 +73,7 @@
     <button onclick="showPage('page-records-main')">🎖️ REKORDY</button>
 </nav>
 
-<header><h1>Skoki Narciarskie Kogama- miesiąc upadku Shoguna Boya</h1></header>
+<header><h1>System Skoków Narciarskich</h1></header>
 
 <div id="login-modal" class="login-overlay hidden">
     <div class="login-box">
@@ -269,23 +269,22 @@
         if(activeCompId) refreshResultsView();
     }
 
-  // --- KLASYFIKACJE I ZARZĄDZANIE ---
+    // --- KLASYFIKACJE I ZARZĄDZANIE ---
     function getRanks(res) {
         res.sort((a,b) => (parseFloat(b.total)||0) - (parseFloat(a.total)||0));
         let lastS = -1, lastR = 0;
         return res.map((r, i) => { let s = parseFloat(r.total) || 0; if (s !== lastS) { lastR = i + 1; lastS = s; } return { ...r, rank: lastR }; });
     }
 
-    async function getCalculatedStanding(gid) {
+   async function getCalculatedStanding(gid) {
         const gSt = (await db.ref('global_klasyfikacje/'+gid).once('value')).val(), allR = (await db.ref('wyniki').once('value')).val()||{}, allC = (await db.ref(`kalendarze/${activeSeasonId}`).once('value')).val()||{}, scores = {};
         
+        // 1. Zliczanie punktów (tak jak było)
         Object.values(allC).forEach(c => {
             if(c.standings && c.standings[gid]) {
                 getRanks(Object.values(allR[c.id] || {})).forEach(r => {
-                    // TU JEST KLUCZOWA ZMIANA: Inicjalizacja liczników w, s, t (win, second, third)
                     if(!scores[r.name]) scores[r.name] = { total: 0, w: 0, s: 0, t: 0 };
                     
-                    // Zliczanie miejsc na podium
                     if(r.rank === 1) scores[r.name].w++;
                     if(r.rank === 2) scores[r.name].s++;
                     if(r.rank === 3) scores[r.name].t++;
@@ -296,6 +295,41 @@
                 });
             }
         });
+
+        // 2. Sortowanie (od największej liczby punktów)
+        const sortedEntries = Object.entries(scores).sort((a,b) => b[1].total - a[1].total);
+
+        // 3. Logika EGZEKWO (Ex aequo)
+        let lastTotal = -999999; // Zmienna pomocnicza: wynik poprzednika
+        let lastRank = 0;        // Zmienna pomocnicza: miejsce poprzednika
+
+        return sortedEntries.map((s, i) => {
+            const currentTotal = s[1].total;
+            let rank;
+
+            // Jeśli wynik jest taki sam jak poprzednika -> to samo miejsce
+            if (currentTotal === lastTotal) {
+                rank = lastRank;
+            } else {
+                // Jeśli inny -> miejsce wynika z kolejności w tabeli (i + 1)
+                // Dzięki temu robi się "przerwa" (np. 1, 1, 3)
+                rank = i + 1;
+            }
+
+            // Zapamiętaj dla następnego skoczka w pętli
+            lastTotal = currentTotal;
+            lastRank = rank;
+
+            return {
+                name: s[0], 
+                total: currentTotal, 
+                w: s[1].w, 
+                s: s[1].s, 
+                t: s[1].t, 
+                pos: rank // Tutaj wstawiamy obliczone miejsce
+            };
+        });
+    
         
         // Zwracamy obiekt, który MA w sobie w, s, t - dzięki temu zniknie 'undefined'
         return Object.entries(scores).sort((a,b) => b[1].total - a[1].total).map((s,i) => ({
@@ -320,7 +354,7 @@
         document.getElementById('st-status-info').classList.toggle('hidden', !isFinished);
         
         // Nagłówek tabeli z kolorami
-        document.getElementById('st-view-head').innerHTML = `<th>Poz.</th><th>Zawodnik</th><th style="width:30px; color:gold; text-align:center;">🥇</th><th style="width:30px; color:silver; text-align:center;">🥈</th><th style="width:30px; color:#cd7f32; text-align:center;">🥉</th><th>Wynik</th>`;
+        document.getElementById('st-view-head').innerHTML = `<th>Poz.</th><th>Zawodnik</th><th style="width:30px; color:gold; text-align:center;">I</th><th style="width:30px; color:silver; text-align:center;">II</th><th style="width:30px; color:#cd7f32; text-align:center;">III</th><th>Wynik</th>`;
         
         const b = document.getElementById('st-view-body'); b.innerHTML = '';
         sorted.forEach(s => { 
@@ -328,28 +362,37 @@
             b.innerHTML += `<tr><td>${s.pos}</td><td>${s.name}</td><td style="text-align:center;">${s.w}</td><td style="text-align:center;">${s.s}</td><td style="text-align:center;">${s.t}</td><td><b>${s.total.toFixed(gSt?.type==='notes'?1:0)}</b></td></tr>`; 
         });
     }
-
-    async function finalizeStanding() {
+   async function finalizeStanding() {
         if(!isAdmin) return;
         if(!confirm("Czy na pewno chcesz zakończyć ten ranking? Wyniki zostaną trwale zapisane w profilach zawodników.")) return;
+        
         const gSt = (await db.ref('global_klasyfikacje/'+currentStandingId).once('value')).val();
         const seasonName = document.getElementById('tiles-title').innerText;
+        
+        // Pobieramy przeliczony ranking (ten sam co w tabeli, z ex aequo)
         const sorted = await getCalculatedStanding(currentStandingId);
         
+        let count = 0;
         for (let s of sorted) {
             const jumper = globalSkoczkowie.find(j => j.name === s.name);
             if(jumper) {
                 const record = {
                     seasonName: seasonName,
                     standingName: gSt.name,
-                    rank: s.pos,
+                    rank: s.pos, // <-- KLUCZOWE: Używamy s.pos (obliczone ex aequo), a nie indeksu pętli
                     score: s.total.toFixed(gSt.type==='notes'?1:0)
                 };
-                db.ref(`skoczkowie/${jumper.id}/historia_rankingow`).push(record);
+                
+                // Zapisujemy do profilu
+                await db.ref(`skoczkowie/${jumper.id}/historia_rankingow`).push(record);
+                count++;
             }
         }
-        db.ref(`sezony/${activeSeasonId}/finished_standings/${currentStandingId}`).set(true);
-        alert("Ranking zakończony! Dane zapisano w profilach.");
+        
+        // Oznaczamy jako zakończony
+        await db.ref(`sezony/${activeSeasonId}/finished_standings/${currentStandingId}`).set(true);
+        
+        alert(`Ranking zakończony! Zapisano wyniki dla ${count} zawodników.`);
         viewStanding(currentStandingId, gSt.name);
     }
 
@@ -383,10 +426,18 @@
         viewStanding(currentStandingId, standingName);
     }
 
-    // --- PROFIL ---
+    // --- PROFIL (ZLICZANIE TYLKO ZŁOTA DLA IO, MŚ, MŚL) ---
     async function openProfile(name) {
         showPage('page-profile'); document.getElementById('prof-name').innerText = name;
-        let hist = [], s = { wins:[], pods:[], io_all:[], ms_all:[], msl_all:[], hillDom:{} };
+        
+        // Zmieniamy strukturę 's' - dodajemy liczniki złota dla każdej imprezy
+        let hist = [], s = { 
+            wins:[], pods:[], hillDom:{},
+            io_all:[], io_gold: 0, 
+            ms_all:[], ms_gold: 0, 
+            msl_all:[], msl_gold: 0 
+        };
+        
         const allR = (await db.ref('wyniki').once('value')).val()||{}, allC = (await db.ref('kalendarze').once('value')).val()||{};
         
         const jumperObj = globalSkoczkowie.find(j => j.name === name);
@@ -416,13 +467,29 @@
                 ranked.forEach(r => { if(r.name === name) {
                     const e = `${comp.date}: <b>${r.rank}.</b> (${comp.loc})`;
                     hist.push({d: comp.date, l: comp.loc, r: r.rank});
+                    
                     if(comp.type === 'konkurs') { 
                         if(r.rank===1) { s.wins.push(e); s.hillDom[comp.loc] = (s.hillDom[comp.loc]||0)+1; } 
                         if(r.rank<=3) s.pods.push(e); 
                     }
-                    if(comp.type==='io') s.io_all.push(e); 
-                    if(comp.type==='ms') s.ms_all.push(e); 
-                    if(comp.type==='msl') s.msl_all.push(e); 
+                    
+                    // --- IGRZYSKA (IO) ---
+                    if(comp.type==='io') {
+                        s.io_all.push(e); // Lista wszystkich
+                        if(r.rank === 1) s.io_gold++; // Licznik złota
+                    } 
+                    
+                    // --- MISTRZOSTWA ŚWIATA (MŚ) ---
+                    if(comp.type==='ms') {
+                        s.ms_all.push(e); // Lista wszystkich
+                        if(r.rank === 1) s.ms_gold++; // Licznik złota
+                    }
+                    
+                    // --- MŚ W LOTACH (MŚL) ---
+                    if(comp.type==='msl') {
+                        s.msl_all.push(e); // Lista wszystkich
+                        if(r.rank === 1) s.msl_gold++; // Licznik złota
+                    }
                 }});
             }
         }
@@ -433,9 +500,16 @@
         document.getElementById('c-wins').innerText = s.wins.length; document.getElementById('prof-wins').innerHTML = s.wins.join('<br>') || 'Brak';
         document.getElementById('c-pods').innerText = s.pods.length; document.getElementById('prof-pods').innerHTML = s.pods.join('<br>') || 'Brak';
         
-        document.getElementById('c-io').innerText = s.io_all.length; document.getElementById('prof-io-list').innerHTML = s.io_all.join('<br>') || 'Brak startów';
-        document.getElementById('ms-count').innerText = s.ms_all.length; document.getElementById('prof-ms-list').innerHTML = s.ms_all.join('<br>') || 'Brak startów';
-        document.getElementById('msl-count').innerText = s.msl_all.length; document.getElementById('prof-msl-list').innerHTML = s.msl_all.join('<br>') || 'Brak startów';
+        // --- AKTUALIZACJA LICZNIKÓW I LIST ---
+        document.getElementById('c-io').innerText = s.io_gold; 
+        document.getElementById('prof-io-list').innerHTML = s.io_all.join('<br>') || 'Brak startów';
+        
+        document.getElementById('ms-count').innerText = s.ms_gold; 
+        document.getElementById('prof-ms-list').innerHTML = s.ms_all.join('<br>') || 'Brak startów';
+
+        document.getElementById('msl-count').innerText = s.msl_gold; 
+        document.getElementById('prof-msl-list').innerHTML = s.msl_all.join('<br>') || 'Brak startów';
+        // -------------------------------------
         
         const chartDiv = document.getElementById('prof-hills-chart'); chartDiv.innerHTML = '';
         const sortedHills = Object.entries(s.hillDom).sort((a,b)=>b[1]-a[1]);
@@ -589,6 +663,6 @@
 
     document.addEventListener('click', e => { if(!e.target.classList.contains('search-input')) document.querySelectorAll('.suggestions-list').forEach(d => d.style.display = 'none'); });
 </script>
+</script>
 </body>
 </html>
-
