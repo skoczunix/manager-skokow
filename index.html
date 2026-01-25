@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Pro Manager Skoków - ULTIMATE SECURE V19 (Smart History)</title>
+    <title>Pro Manager Skoków - ULTIMATE SECURE V20 (ReadOnly Fix)</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -54,6 +54,9 @@
         .login-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 10000; display:flex; justify-content:center; align-items:center; }
         .login-box { background: white; padding: 30px; border-radius: 10px; width: 300px; text-align: center; }
         .login-input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        
+        /* STRICT MODE */
+        .read-only-text { pointer-events: none; }
     </style>
 </head>
 <body>
@@ -71,12 +74,12 @@
     <button onclick="showPage('page-records-main')">🎖️ REKORDY</button>
 </nav>
 
-<header><h1>Skoki Narciarskie Kogama</h1></header>
+<header><h1>System Skoków Narciarskich</h1></header>
 
 <div id="login-modal" class="login-overlay hidden">
     <div class="login-box">
         <h2>Panel Admina</h2>
-        <input type="email" id="login-email" class="login-input" placeholder="Email (np. admin@skoki.pl)">
+        <input type="email" id="login-email" class="login-input" placeholder="Email">
         <input type="password" id="login-pass" class="login-input" placeholder="Hasło">
         <button class="btn" style="background:var(--primary); color:white; width:100%;" onclick="performLogin()">Zaloguj się</button>
         <button class="btn" style="background:#ccc; color:#333; width:100%; margin-top:10px;" onclick="document.getElementById('login-modal').classList.add('hidden')">Anuluj</button>
@@ -296,6 +299,7 @@
     }
 
     async function finalizeStanding() {
+        if(!isAdmin) return;
         if(!confirm("Czy na pewno chcesz zakończyć ten ranking? Wyniki zostaną trwale zapisane w profilach zawodników.")) return;
         const gSt = (await db.ref('global_klasyfikacje/'+currentStandingId).once('value')).val();
         const seasonName = document.getElementById('tiles-title').innerText;
@@ -319,18 +323,17 @@
     }
 
     async function resumeStanding() {
+        if(!isAdmin) return;
         if(!confirm("UWAGA: Wznowienie usunie przyznane wyniki tego rankingu z profili skoczków. Czy chcesz kontynuować?")) return;
         
-        const seasonName = document.getElementById('tiles-title').innerText; // Pobierz nazwę sezonu z widoku
+        const seasonName = document.getElementById('tiles-title').innerText;
         const gSt = (await db.ref('global_klasyfikacje/'+currentStandingId).once('value')).val();
         const standingName = gSt.name;
 
-        // 1. Pobierz wszystkich skoczków
         const allJumpersSnap = await db.ref('skoczkowie').once('value');
         const allJumpers = allJumpersSnap.val() || {};
         const updates = {};
 
-        // 2. Przeszukaj historie i usuń pasujące wpisy
         let deletedCount = 0;
         for (const [jumperId, jumperData] of Object.entries(allJumpers)) {
             if (jumperData.historia_rankingow) {
@@ -343,11 +346,8 @@
             }
         }
 
-        // 3. Usuń status zakończenia w sezonie
         updates[`sezony/${activeSeasonId}/finished_standings/${currentStandingId}`] = null;
-
         await db.ref().update(updates);
-        
         alert(`Ranking wznowiony. Usunięto ${deletedCount} wpisów z profili.`);
         viewStanding(currentStandingId, standingName);
     }
@@ -433,14 +433,15 @@
         db.ref('skocznie/'+id).set({ id, name, hs, k: document.getElementById('h-k-val').value, recKoAuth: document.getElementById('h-rk-auth').value, recKoDist: document.getElementById('h-rk-dist').value, recRealAuth: document.getElementById('h-rr-auth').value, recRealDist: document.getElementById('h-rr-dist').value });
     }
 
+    // STRICT RENDERING: HILLS
     function refreshHillList(data) {
         const b = document.getElementById('hill-list'); b.innerHTML = '';
         const isEdit = isAdmin ? 'contenteditable="true" class="editable-cell"' : '';
         data.forEach(h => {
-            b.innerHTML += `<tr><td ${isEdit} onblur="db.ref('skocznie/${h.id}').update({name:this.innerText})">${h.name}</td>
-                <td>HS: <span ${isEdit} onblur="db.ref('skocznie/${h.id}').update({hs:this.innerText})">${h.hs}</span> / K: <span ${isEdit} onblur="db.ref('skocznie/${h.id}').update({k:this.innerText})">${h.k}</span></td>
-                <td><span ${isEdit} onblur="db.ref('skocznie/${h.id}').update({recKoAuth:this.innerText})">${h.recKoAuth}</span> (<span ${isEdit} onblur="db.ref('skocznie/${h.id}').update({recKoDist:this.innerText})">${h.recKoDist}</span>m)</td>
-                <td><span ${isEdit} onblur="db.ref('skocznie/${h.id}').update({recRealAuth:this.innerText})">${h.recRealAuth}</span> (<span ${isEdit} onblur="db.ref('skocznie/${h.id}').update({recRealDist:this.innerText})">${h.recRealDist}</span>m)</td>
+            b.innerHTML += `<tr><td ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({name:this.innerText})">${h.name}</td>
+                <td>HS: <span ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({hs:this.innerText})">${h.hs}</span> / K: <span ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({k:this.innerText})">${h.k}</span></td>
+                <td><span ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({recKoAuth:this.innerText})">${h.recKoAuth}</span> (<span ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({recKoDist:this.innerText})">${h.recKoDist}</span>m)</td>
+                <td><span ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({recRealAuth:this.innerText})">${h.recRealAuth}</span> (<span ${isEdit} onblur="if(isAdmin) db.ref('skocznie/${h.id}').update({recRealDist:this.innerText})">${h.recRealDist}</span>m)</td>
                 <td class="${isAdmin?'':'hidden'}"><button class="btn btn-del" onclick="db.ref('skocznie/${h.id}').remove()">X</button></td></tr>`;
         });
         const listDiv = document.getElementById('suggestions-h-rk');
@@ -452,6 +453,7 @@
         db.ref('wyniki/'+activeCompId+'/'+key).set({id: key, name: "Wybierz...", s1: '-', s2: '-', s3: '-', s4: '-', total: 0});
     }
 
+    // STRICT RENDERING: RESULTS
     function refreshResultsView() {
         db.ref('wyniki/'+activeCompId).on('value', s => {
             const data = Object.values(s.val()||{}).filter(x => x && x.id);
@@ -461,9 +463,22 @@
             document.querySelectorAll('.s2-col').forEach(el=>activeType==='kwali'?el.classList.add('hidden'):el.classList.remove('hidden'));
             ranked.forEach(r => {
                 const isQ = (r.rank <= qL) ? '<span class="q-badge">[Q]</span>' : '';
-                let row = `<tr><td>${r.rank}${isQ}</td><td><div class="dropdown-wrapper"><input type="text" class="search-input" value="${r.name}" oninput="filterLocalList(this, 'list-${r.id}')" onfocus="document.getElementById('list-${r.id}').style.display='block'"><div id="list-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div></div></td><td contenteditable="${isAdmin}" onfocus="liveToBeat('${r.id}','s1',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
-                if(activeType!=='kwali') row += `<td class="s2-col" contenteditable="${isAdmin}" onfocus="liveToBeat('${r.id}','s2',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
-                if(activeType==='msl') row += `<td contenteditable="${isAdmin}" onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td><td contenteditable="${isAdmin}" onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
+                
+                // SECURE INPUT RENDERING
+                let nameCell = '';
+                if (isAdmin) {
+                    nameCell = `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${r.name}" oninput="filterLocalList(this, 'list-${r.id}')" onfocus="document.getElementById('list-${r.id}').style.display='block'"><div id="list-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div></div>`;
+                } else {
+                    nameCell = `<b>${r.name}</b>`;
+                }
+
+                // SECURE SCORE RENDERING
+                const editAttr = isAdmin ? 'contenteditable="true"' : '';
+                
+                let row = `<tr><td>${r.rank}${isQ}</td><td>${nameCell}</td><td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
+                if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
+                if(activeType==='msl') row += `<td ${editAttr} onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td><td ${editAttr} onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
+                
                 b.innerHTML += row + `<td class="col-total">${(parseFloat(r.total)||0).toFixed(1)}</td><td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
             });
         });
@@ -478,12 +493,26 @@
     function addSkoczek() { const n=prompt("Imię:"); if(n) db.ref('skoczkowie/'+Date.now()).set({id: Date.now().toString(), name:n}); }
     function createGlobalStanding() { const n = document.getElementById('global-st-name').value, t = document.getElementById('global-st-type').value; if(n) db.ref('global_klasyfikacje').push({name:n, type:t}).then(()=>document.getElementById('global-st-name').value=''); }
     function addSpecialRecord() { const n=document.getElementById('rec-name-in').value, t=document.getElementById('rec-text-in').value; if(n && t) db.ref('osiagniecia_specjalne').push({name:n, text:t}).then(()=>document.getElementById('rec-text-in').value=''); }
-    function calcRes(rid, f, v) { let val = v.trim()==='-'?'-':parseFloat(v.replace(',','.'))||0; db.ref(`wyniki/${activeCompId}/${rid}`).update({[f]:val}).then(()=>{ db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s=>{ let d=s.val(), sum=0; ['s1','s2','s3','s4'].forEach(x=>{ if(d[x]!=='-' && d[x]!==undefined) sum+=parseFloat(d[x]||0); }); db.ref(`wyniki/${activeCompId}/${rid}`).update({total:sum}); }); }); }
+    function calcRes(rid, f, v) { if(!isAdmin) return; let val = v.trim()==='-'?'-':parseFloat(v.replace(',','.'))||0; db.ref(`wyniki/${activeCompId}/${rid}`).update({[f]:val}).then(()=>{ db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s=>{ let d=s.val(), sum=0; ['s1','s2','s3','s4'].forEach(x=>{ if(d[x]!=='-' && d[x]!==undefined) sum+=parseFloat(d[x]||0); }); db.ref(`wyniki/${activeCompId}/${rid}`).update({total:sum}); }); }); }
     function liveToBeat(rid, ser, leader) { if(isAdmin) db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { const d = s.val(); if(!d) return; let p = (ser==='s2'?parseFloat(d.s1||0):0); document.getElementById('live-to-beat').innerText = `Aby prowadzić: ${(leader-p).toFixed(1)} m`; }); }
     function updateQLimit(v) { db.ref(`kalendarze/${activeSeasonId}/${activeCompId}/qLimit`).set(parseInt(v)); }
     function toggleStatList(id) { const el = document.getElementById(id); el.style.display = (el.style.display==='block')?'none':'block'; }
 
-    function renderCalendar(data) { const b = document.getElementById('calendar-body'); b.innerHTML = ''; data.sort((a,b)=>a.date.localeCompare(b.date)).forEach(c => { b.innerHTML += `<tr><td contenteditable="${isAdmin}" onblur="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({date:this.innerText})">${c.date}</td><td><select class="${isAdmin?'':'hidden'}" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({type:this.value})"><option value="konkurs" ${c.type==='konkurs'?'selected':''}>Konkurs</option><option value="kwali" ${c.type==='kwali'?'selected':''}>Kwalifikacje</option><option value="ms" ${c.type==='ms'?'selected':''}>MŚ</option><option value="io" ${c.type==='io'?'selected':''}>IO</option><option value="msl" ${c.type==='msl'?'selected':''}>MŚL</option></select><span class="${isAdmin?'hidden':''}">${c.type.toUpperCase()}</span></td><td><div class="dropdown-wrapper"><input type="text" class="search-input" value="${c.loc}" oninput="filterLocalList(this, 'list-h-${c.id}')" onfocus="document.getElementById('list-h-${c.id}').style.display='block'"><div id="list-h-${c.id}" class="suggestions-list">${globalHills.map(h => `<div class="suggestion-item" onclick="confirmHill('${c.id}', '${h.name}')">${h.name}</div>`).join('')}</div></div></td><td><button class="btn" style="background:var(--primary); color:white;" onclick="openResults('${c.id}','${c.loc}','${c.type}')">Wyniki</button> ${isAdmin?`<button class="btn btn-del" onclick="db.ref('kalendarze/${activeSeasonId}/${c.id}').remove()">X</button>`:''}</td></tr>`; }); }
+    // STRICT RENDERING: CALENDAR
+    function renderCalendar(data) { 
+        const b = document.getElementById('calendar-body'); b.innerHTML = ''; 
+        data.sort((a,b)=>a.date.localeCompare(b.date)).forEach(c => { 
+            // Secure Loc Input
+            let locCell = '';
+            if(isAdmin) {
+                locCell = `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${c.loc}" oninput="filterLocalList(this, 'list-h-${c.id}')" onfocus="document.getElementById('list-h-${c.id}').style.display='block'"><div id="list-h-${c.id}" class="suggestions-list">${globalHills.map(h => `<div class="suggestion-item" onclick="confirmHill('${c.id}', '${h.name}')">${h.name}</div>`).join('')}</div></div>`;
+            } else {
+                locCell = c.loc;
+            }
+
+            b.innerHTML += `<tr><td contenteditable="${isAdmin}" onblur="if(isAdmin) db.ref('kalendarze/${activeSeasonId}/${c.id}').update({date:this.innerText})">${c.date}</td><td><select class="${isAdmin?'':'hidden'}" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({type:this.value})"><option value="konkurs" ${c.type==='konkurs'?'selected':''}>Konkurs</option><option value="kwali" ${c.type==='kwali'?'selected':''}>Kwalifikacje</option><option value="ms" ${c.type==='ms'?'selected':''}>MŚ</option><option value="io" ${c.type==='io'?'selected':''}>IO</option><option value="msl" ${c.type==='msl'?'selected':''}>MŚL</option></select><span class="${isAdmin?'hidden':''}">${c.type.toUpperCase()}</span></td><td>${locCell}</td><td><button class="btn" style="background:var(--primary); color:white;" onclick="openResults('${c.id}','${c.loc}','${c.type}')">Wyniki</button> ${isAdmin?`<button class="btn btn-del" onclick="db.ref('kalendarze/${activeSeasonId}/${c.id}').remove()">X</button>`:''}</td></tr>`; 
+        }); 
+    }
 
     db.ref('sezony').on('value', s => { const list = document.getElementById('seasons-list'); list.innerHTML = ''; Object.values(s.val()||{}).forEach(sez => list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><b>${sez.name}</b><div><button class="btn" onclick="openSeason('${sez.id}','${sez.name}')">Otwórz</button> <button class="btn btn-del admin-only ${isAdmin?'':'hidden'}" onclick="db.ref('sezony/${sez.id}').remove()">X</button></div></div>`); });
     db.ref('skoczkowie').on('value', s => { globalSkoczkowie=Object.values(s.val()||{}); const b=document.getElementById('skoczkowie-list'); if(b) { b.innerHTML=''; globalSkoczkowie.forEach(sk=>b.innerHTML+=`<tr><td>${sk.name}</td><td><button class="btn" onclick="openProfile('${sk.name}')">Profil</button></td><td class="admin-only ${isAdmin?'':'hidden'}"><button class="btn-del" onclick="db.ref('skoczkowie/${sk.id}').remove()">X</button></td></tr>`); } });
