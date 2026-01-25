@@ -473,7 +473,7 @@
                 }
 
                 // SECURE SCORE RENDERING
-                const editAttr = isAdmin ? 'contenteditable="true"' : '';
+                const editAttr = isAdmin ? 'contenteditable="true"' : 'tabindex="0"';
                 
                 let row = `<tr><td>${r.rank}${isQ}</td><td>${nameCell}</td><td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
                 if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
@@ -534,3 +534,4 @@
 </script>
 </body>
 </html>
+
