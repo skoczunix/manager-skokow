@@ -73,7 +73,7 @@
     <button onclick="showPage('page-records-main')">🎖️ REKORDY</button>
 </nav>
 
-<header><h1>System Skoków Narciarskich</h1></header>
+<header><h1>Skoki Narciarskie Kogama- miesiąc upadku Shoguna Boya</h1></header>
 
 <div id="login-modal" class="login-overlay hidden">
     <div class="login-box">
@@ -269,7 +269,7 @@
         if(activeCompId) refreshResultsView();
     }
 
-    // --- KLASYFIKACJE I ZARZĄDZANIE ---
+  // --- KLASYFIKACJE I ZARZĄDZANIE ---
     function getRanks(res) {
         res.sort((a,b) => (parseFloat(b.total)||0) - (parseFloat(a.total)||0));
         let lastS = -1, lastR = 0;
@@ -278,31 +278,55 @@
 
     async function getCalculatedStanding(gid) {
         const gSt = (await db.ref('global_klasyfikacje/'+gid).once('value')).val(), allR = (await db.ref('wyniki').once('value')).val()||{}, allC = (await db.ref(`kalendarze/${activeSeasonId}`).once('value')).val()||{}, scores = {};
+        
         Object.values(allC).forEach(c => {
             if(c.standings && c.standings[gid]) {
                 getRanks(Object.values(allR[c.id] || {})).forEach(r => {
-                    if(!scores[r.name]) scores[r.name] = { total: 0 };
+                    // TU JEST KLUCZOWA ZMIANA: Inicjalizacja liczników w, s, t (win, second, third)
+                    if(!scores[r.name]) scores[r.name] = { total: 0, w: 0, s: 0, t: 0 };
+                    
+                    // Zliczanie miejsc na podium
+                    if(r.rank === 1) scores[r.name].w++;
+                    if(r.rank === 2) scores[r.name].s++;
+                    if(r.rank === 3) scores[r.name].t++;
+
                     if(gSt?.type === 'fis') {
                         if(r.rank <= (c.qLimit||30)) scores[r.name].total += FIS_PTS[r.rank-1] || 0;
                     } else scores[r.name].total += (parseFloat(r.total)||0);
                 });
             }
         });
-        return Object.entries(scores).sort((a,b) => b[1].total - a[1].total).map((s,i) => ({name: s[0], total: s[1].total, pos: i+1}));
+        
+        // Zwracamy obiekt, który MA w sobie w, s, t - dzięki temu zniknie 'undefined'
+        return Object.entries(scores).sort((a,b) => b[1].total - a[1].total).map((s,i) => ({
+            name: s[0], 
+            total: s[1].total, 
+            w: s[1].w, 
+            s: s[1].s, 
+            t: s[1].t, 
+            pos: i+1
+        }));
     }
 
     async function viewStanding(gid, name) {
         currentStandingId = gid;
         showPage('page-standings-view'); 
         document.getElementById('st-view-title').innerText = name;
+        
+        // Pobieramy dane z nowej funkcji powyżej
         const sorted = await getCalculatedStanding(gid), gSt = (await db.ref('global_klasyfikacje/'+gid).once('value')).val();
         
         const isFinished = (await db.ref(`sezony/${activeSeasonId}/finished_standings/${gid}`).once('value')).val();
         document.getElementById('st-status-info').classList.toggle('hidden', !isFinished);
         
-        document.getElementById('st-view-head').innerHTML = `<th>Poz.</th><th>Zawodnik</th><th>Wynik</th>`;
+        // Nagłówek tabeli z kolorami
+        document.getElementById('st-view-head').innerHTML = `<th>Poz.</th><th>Zawodnik</th><th style="width:30px; color:gold; text-align:center;">🥇</th><th style="width:30px; color:silver; text-align:center;">🥈</th><th style="width:30px; color:#cd7f32; text-align:center;">🥉</th><th>Wynik</th>`;
+        
         const b = document.getElementById('st-view-body'); b.innerHTML = '';
-        sorted.forEach(s => { b.innerHTML += `<tr><td>${s.pos}</td><td>${s.name}</td><td><b>${s.total.toFixed(gSt?.type==='notes'?1:0)}</b></td></tr>`; });
+        sorted.forEach(s => { 
+            // Teraz s.w, s.s i s.t mają wartości (np. 0, 1, 2) zamiast undefined
+            b.innerHTML += `<tr><td>${s.pos}</td><td>${s.name}</td><td style="text-align:center;">${s.w}</td><td style="text-align:center;">${s.s}</td><td style="text-align:center;">${s.t}</td><td><b>${s.total.toFixed(gSt?.type==='notes'?1:0)}</b></td></tr>`; 
+        });
     }
 
     async function finalizeStanding() {
@@ -567,3 +591,4 @@
 </script>
 </body>
 </html>
+
