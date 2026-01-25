@@ -494,8 +494,13 @@
     function createGlobalStanding() { const n = document.getElementById('global-st-name').value, t = document.getElementById('global-st-type').value; if(n) db.ref('global_klasyfikacje').push({name:n, type:t}).then(()=>document.getElementById('global-st-name').value=''); }
     function addSpecialRecord() { const n=document.getElementById('rec-name-in').value, t=document.getElementById('rec-text-in').value; if(n && t) db.ref('osiagniecia_specjalne').push({name:n, text:t}).then(()=>document.getElementById('rec-text-in').value=''); }
     function calcRes(rid, f, v) { if(!isAdmin) return; let val = v.trim()==='-'?'-':parseFloat(v.replace(',','.'))||0; db.ref(`wyniki/${activeCompId}/${rid}`).update({[f]:val}).then(()=>{ db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s=>{ let d=s.val(), sum=0; ['s1','s2','s3','s4'].forEach(x=>{ if(d[x]!=='-' && d[x]!==undefined) sum+=parseFloat(d[x]||0); }); db.ref(`wyniki/${activeCompId}/${rid}`).update({total:sum}); }); }); }
-    function liveToBeat(rid, ser, leader) { if(isAdmin) db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { const d = s.val(); if(!d) return; let p = (ser==='s2'?parseFloat(d.s1||0):0); document.getElementById('live-to-beat').innerText = `Aby prowadzić: ${(leader-p).toFixed(1)} m`; }); }
-    function updateQLimit(v) { db.ref(`kalendarze/${activeSeasonId}/${activeCompId}/qLimit`).set(parseInt(v)); }
+   function liveToBeat(rid, ser, leader) { 
+    db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { 
+        const d = s.val(); if(!d) return; 
+        let p = (ser==='s2'?parseFloat(d.s1||0):0); 
+        document.getElementById('live-to-beat').innerText = `Aby prowadzić: ${(leader-p).toFixed(1)} m`; 
+    }); 
+}
     function toggleStatList(id) { const el = document.getElementById(id); el.style.display = (el.style.display==='block')?'none':'block'; }
 
     // STRICT RENDERING: CALENDAR
@@ -534,4 +539,5 @@
 </script>
 </body>
 </html>
+
 
