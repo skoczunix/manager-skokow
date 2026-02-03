@@ -73,7 +73,7 @@
     <button onclick="showPage('page-records-main')">🎖️ REKORDY</button>
 </nav>
 
-<header><h1>System Skoków Narciarskich</h1></header>
+<header><h1>Skoki Narciarskie Kogama</h1></header>
 
 <div id="login-modal" class="login-overlay hidden">
     <div class="login-box">
@@ -141,7 +141,7 @@
             <div id="global-checkboxes"></div>
         </div>
         <button id="add-result-btn" class="btn btn-add admin-only hidden" onclick="addResultRow()">+ Skoczek</button>
-        <table><thead><tr><th class="col-rank">Poz.</th><th class="col-name">Zawodnik</th><th class="col-score">S1</th><th class="s2-col col-score">S2</th><th class="msl-extra hidden col-score">S3</th><th class="msl-extra hidden col-score">S4</th><th class="col-total">Nota</th><th class="admin-only hidden col-action">X</th></tr></thead><tbody id="results-body"></tbody></table>
+        <table><thead><tr><th class="col-rank">Poz.</th><th class="col-name">Zawodnik</th><th class="col-score">S1</th><th class="s2-col col-score">S2</th><th class="msl-extra hidden col-score">S3</th><th class="msl-extra hidden col-score">S4</th><th class="col-score">Strata</th><th class="col-total">Nota</th><th class="admin-only hidden col-action">X</th></tr></thead><tbody id="results-body"></tbody></table>
     </div>
 
     <div id="page-profile" class="hidden">
@@ -343,25 +343,46 @@
     }
 
     async function viewStanding(gid, name) {
-        currentStandingId = gid;
-        showPage('page-standings-view'); 
-        document.getElementById('st-view-title').innerText = name;
+    currentStandingId = gid;
+    showPage('page-standings-view'); 
+    document.getElementById('st-view-title').innerText = name;
+    
+    const sorted = await getCalculatedStanding(gid);
+    const gSt = (await db.ref('global_klasyfikacje/'+gid).once('value')).val();
+    
+    const isFinished = (await db.ref(`sezony/${activeSeasonId}/finished_standings/${gid}`).once('value')).val();
+    document.getElementById('st-status-info').classList.toggle('hidden', !isFinished);
+    
+    // Nagłówek tabeli
+    document.getElementById('st-view-head').innerHTML = `
+        <th>Poz.</th>
+        <th>Zawodnik</th>
+        <th>Strata</th>
+        <th style="width:35px; color:gold; text-align:center;">🥇</th>
+        <th style="width:35px; color:silver; text-align:center;">🥈</th>
+        <th style="width:35px; color:#cd7f32; text-align:center;">🥉</th>
+        <th>Wynik</th>`;
+    
+    const b = document.getElementById('st-view-body'); 
+    b.innerHTML = '';
+    const leaderTotal = sorted.length > 0 ? sorted[0].total : 0;
+
+    sorted.forEach(s => { 
+        const strata = s.pos === 1 ? "---" : (s.total - leaderTotal).toFixed(gSt?.type==='notes'?1:0);
         
-        // Pobieramy dane z nowej funkcji powyżej
-        const sorted = await getCalculatedStanding(gid), gSt = (await db.ref('global_klasyfikacje/'+gid).once('value')).val();
-        
-        const isFinished = (await db.ref(`sezony/${activeSeasonId}/finished_standings/${gid}`).once('value')).val();
-        document.getElementById('st-status-info').classList.toggle('hidden', !isFinished);
-        
-        // Nagłówek tabeli z kolorami
-        document.getElementById('st-view-head').innerHTML = `<th>Poz.</th><th>Zawodnik</th><th style="width:30px; color:gold; text-align:center;">I</th><th style="width:30px; color:silver; text-align:center;">II</th><th style="width:30px; color:#cd7f32; text-align:center;">III</th><th>Wynik</th>`;
-        
-        const b = document.getElementById('st-view-body'); b.innerHTML = '';
-        sorted.forEach(s => { 
-            // Teraz s.w, s.s i s.t mają wartości (np. 0, 1, 2) zamiast undefined
-            b.innerHTML += `<tr><td>${s.pos}</td><td>${s.name}</td><td style="text-align:center;">${s.w}</td><td style="text-align:center;">${s.s}</td><td style="text-align:center;">${s.t}</td><td><b>${s.total.toFixed(gSt?.type==='notes'?1:0)}</b></td></tr>`; 
-        });
-    }
+        // TUTAJ BYŁ BŁĄD - brakowało td dla s.w, s.s i s.t
+        b.innerHTML += `
+            <tr>
+                <td>${s.pos}</td>
+                <td>${s.name}</td>
+                <td style="color:#666; font-size:0.8rem;">${strata}</td>
+                <td>${s.w}</td>
+                <td>${s.s}</td>
+                <td>${s.t}</td>
+                <td><b>${s.total.toFixed(gSt?.type==='notes'?1:0)}</b></td>
+            </tr>`; 
+    });
+}
    async function finalizeStanding() {
         if(!isAdmin) return;
         if(!confirm("Czy na pewno chcesz zakończyć ten ranking? Wyniki zostaną trwale zapisane w profilach zawodników.")) return;
@@ -448,7 +469,7 @@
             db.ref(`skoczkowie/${jumperObj.id}/historia_rankingow`).once('value', sn => {
                 const h = sn.val();
                 if(!h) { finalStandingsDiv.innerHTML = 'Brak wpisów archiwalnych.'; return; }
-                let html = '<table><thead><tr><th>Sezon</th><th>Ranking</th><th>Miejsce</th><th>PKT/Nota</th></tr></thead><tbody>';
+                let html = '<table><thead><tr><th>Sezon</th><th>Ranking</th><th>Miejsce</th><th class="col-score">Strata</th><th class="col-total">Nota</th></tr></thead><tbody>';
                 Object.values(h).sort((a,b)=>b.seasonName.localeCompare(a.seasonName)).forEach(rec => {
                     let color = rec.rank == 1 ? '#ffd700' : (rec.rank == 2 ? '#c0c0c0' : (rec.rank == 3 ? '#cd7f32' : 'inherit'));
                     let weight = rec.rank <= 3 ? 'bold' : 'normal';
@@ -560,36 +581,51 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
     }
 
     // STRICT RENDERING: RESULTS
-    function refreshResultsView() {
-        db.ref('wyniki/'+activeCompId).on('value', s => {
-            const data = Object.values(s.val()||{}).filter(x => x && x.id);
-            const qL = parseInt(document.getElementById('q-limit-input').value)||30, ranked = getRanks([...data]);
-            const b = document.getElementById('results-body'); b.innerHTML = '';
-            document.querySelectorAll('.msl-extra').forEach(el=>activeType==='msl'?el.classList.remove('hidden'):el.classList.add('hidden'));
-            document.querySelectorAll('.s2-col').forEach(el=>activeType==='kwali'?el.classList.add('hidden'):el.classList.remove('hidden'));
-            ranked.forEach(r => {
-                const isQ = (r.rank <= qL) ? '<span class="q-badge">[Q]</span>' : '';
-                
-                // SECURE INPUT RENDERING
-                let nameCell = '';
-                if (isAdmin) {
-                    nameCell = `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${r.name}" oninput="filterLocalList(this, 'list-${r.id}')" onfocus="document.getElementById('list-${r.id}').style.display='block'"><div id="list-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div></div>`;
-                } else {
-                    nameCell = `<b>${r.name}</b>`;
-                }
+   function refreshResultsView() {
+        // Nasłuchujemy danych konkursu, aby mieć aktualny qLimit i typ
+        db.ref(`kalendarze/${activeSeasonId}/${activeCompId}`).on('value', compSnap => {
+            const compData = compSnap.val() || {};
+            const qL = compData.qLimit || 30; // Pobiera limit z bazy, nie z inputa
 
-                // SECURE SCORE RENDERING
-                const editAttr = isAdmin ? 'contenteditable="true"' : '';
+            db.ref('wyniki/'+activeCompId).on('value', s => {
+                const data = Object.values(s.val()||{}).filter(x => x && x.id);
+                const ranked = getRanks([...data]);
+                const leaderScore = ranked.length > 0 ? (parseFloat(ranked[0].total) || 0) : 0;
                 
-                let row = `<tr><td>${r.rank}${isQ}</td><td>${nameCell}</td><td ${editAttr} onfocus="adminCalcToBeat('${r.id}','s1',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
-                if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="adminCalcToBeat('${r.id}','s2',${parseFloat(ranked[0]?.total)||0})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
-                if(activeType==='msl') row += `<td ${editAttr} onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td><td ${editAttr} onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
+                const b = document.getElementById('results-body'); b.innerHTML = '';
                 
-                b.innerHTML += row + `<td class="col-total">${(parseFloat(r.total)||0).toFixed(1)}</td><td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
+                // Aktualizacja widoczności kolumn
+                document.querySelectorAll('.msl-extra').forEach(el=>activeType==='msl'?el.classList.remove('hidden'):el.classList.add('hidden'));
+                document.querySelectorAll('.s2-col').forEach(el=>activeType==='kwali'?el.classList.add('hidden'):el.classList.remove('hidden'));
+                
+                ranked.forEach(r => {
+                    const currentTotal = parseFloat(r.total) || 0;
+                    const strata = r.rank === 1 ? "---" : (currentTotal - leaderScore).toFixed(1);
+                    const isQ = (r.rank <= qL) ? '<span class="q-badge">[Q]</span>' : '';
+                    
+                    let nameCell = isAdmin 
+                        ? `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${r.name}" oninput="filterLocalList(this, 'list-${r.id}')" onfocus="document.getElementById('list-${r.id}').style.display='block'"><div id="list-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div></div>`
+                        : `<b>${r.name}</b>`;
+
+                    const editAttr = isAdmin ? 'contenteditable="true"' : '';
+                    
+                    let row = `<tr>
+                        <td>${r.rank}${isQ}</td>
+                        <td>${nameCell}</td>
+                        <td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${leaderScore})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
+                    
+                    if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${leaderScore})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
+                    if(activeType==='msl') row += `<td ${editAttr} onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td><td ${editAttr} onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
+                    
+                    // Dodajemy kolumnę ze stratą przed notą końcową
+                    row += `<td>${strata}</td><td class="col-total">${currentTotal.toFixed(1)}</td>`;
+                    row += `<td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
+                    
+                    b.innerHTML += row;
+                });
             });
         });
     }
-
     window.filterLocalList = function(i, lId) { const v = i.value.toUpperCase(); const l = document.getElementById(lId); l.style.display = 'block'; Array.from(l.children).forEach(d => { d.style.display = d.innerText.toUpperCase().includes(v) ? 'block' : 'none'; }); };
     window.confirmJumper = function(rId, n) { db.ref(`wyniki/${activeCompId}/${rId}`).update({name: n}); };
     window.confirmHill = function(cId, n) { db.ref(`kalendarze/${activeSeasonId}/${cId}`).update({loc: n}); };
@@ -667,4 +703,3 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
 </script>
 </body>
 </html>
-
