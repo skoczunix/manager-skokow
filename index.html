@@ -609,14 +609,18 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
 
                     const editAttr = isAdmin ? 'contenteditable="true"' : '';
                     
-                    let row = `<tr>
-                        <td>${r.rank}${isQ}</td>
-                        <td>${nameCell}</td>
-                        <td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${leaderScore})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
-                    
-                    if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${leaderScore})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
-                    if(activeType==='msl') row += `<td ${editAttr} onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td><td ${editAttr} onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
-                    
+                   let row = `<tr>
+        <td>${r.rank}${isQ}</td>
+        <td>${nameCell}</td>
+        <td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${leaderScore})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
+    
+    if(activeType!=='kwali') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${leaderScore})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
+    
+    // Dodano onfocus dla serii 3 i 4 (MŚL)
+    if(activeType==='msl') {
+        row += `<td ${editAttr} onfocus="liveToBeat('${r.id}','s3',${leaderScore})" onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td>
+                <td ${editAttr} onfocus="liveToBeat('${r.id}','s4',${leaderScore})" onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
+    }
                     // Dodajemy kolumnę ze stratą przed notą końcową
                     row += `<td>${strata}</td><td class="col-total">${currentTotal.toFixed(1)}</td>`;
                     row += `<td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
@@ -644,15 +648,22 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
     }
 
     // LIVE TO BEAT - ADMIN SENDS, EVERYONE SEES
-    function adminCalcToBeat(rid, ser, leader) { 
-        if(!isAdmin) return; 
-        db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { 
-            const d = s.val(); if(!d) return; 
-            let p = (ser==='s2'?parseFloat(d.s1||0):0); 
-            const needed = (leader-p).toFixed(1);
-            db.ref('status/liveToBeat').set(`Aby prowadzić: ${needed} m (Zawodnik: ${d.name})`);
-        }); 
-    }
+    function liveToBeat(rid, ser, leader) { 
+    if(!isAdmin) return; 
+    db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { 
+        const d = s.val(); 
+        if(!d) return; 
+        
+        let sumaPrzed = 0;
+        if(ser === 's2') sumaPrzed = parseFloat(d.s1 || 0);
+        if(ser === 's3') sumaPrzed = parseFloat(d.s1 || 0) + parseFloat(d.s2 || 0);
+        if(ser === 's4') sumaPrzed = parseFloat(d.s1 || 0) + parseFloat(d.s2 || 0) + parseFloat(d.s3 || 0);
+
+        const needed = (leader - sumaPrzed).toFixed(1);
+        // Wysyłamy do bazy - to sprawia, że zmienia się u wszystkich
+        db.ref('status/liveToBeat').set(`Aby prowadzić: ${needed} m (Skacze: ${d.name})`);
+    }); 
+}
     
     function updateQLimit(v) { db.ref(`kalendarze/${activeSeasonId}/${activeCompId}/qLimit`).set(parseInt(v)); }
     function toggleStatList(id) { const el = document.getElementById(id); el.style.display = (el.style.display==='block')?'none':'block'; }
