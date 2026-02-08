@@ -469,7 +469,7 @@
             db.ref(`skoczkowie/${jumperObj.id}/historia_rankingow`).once('value', sn => {
                 const h = sn.val();
                 if(!h) { finalStandingsDiv.innerHTML = 'Brak wpisów archiwalnych.'; return; }
-                let html = '<table><thead><tr><th>Sezon</th><th>Ranking</th><th>Miejsce</th><th class="col-score">Strata</th><th class="col-total">Nota</th></tr></thead><tbody>';
+                let html = '<table><thead><tr><th>Sezon</th><th>Ranking</th><th>Miejsce</th><th class="col-total">Nota</th></tr></thead><tbody>';
                 Object.values(h).sort((a,b)=>b.seasonName.localeCompare(a.seasonName)).forEach(rec => {
                     let color = rec.rank == 1 ? '#ffd700' : (rec.rank == 2 ? '#c0c0c0' : (rec.rank == 3 ? '#cd7f32' : 'inherit'));
                     let weight = rec.rank <= 3 ? 'bold' : 'normal';
@@ -714,3 +714,4 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
 </script>
 </body>
 </html>
+
