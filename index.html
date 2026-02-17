@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -71,6 +72,7 @@
     <button onclick="showPage('page-skoczkowie')">⛷️ SKOCZKOWIE</button>
     <button onclick="showPage('page-skocznie')">🏔️ SKOCZNIE</button>
     <button onclick="showPage('page-records-main')">🎖️ REKORDY</button>
+<button onclick="showPage('page-galeria')">🏆 GALERIA SŁAW</button>
 </nav>
 
 <header><h1>Skoki Narciarskie Kogama</h1></header>
@@ -178,7 +180,42 @@
         </div>
         <div id="global-records-list"></div>
     </div>
+    <div id="page-galeria" class="hidden">
+    <h2 style="text-align:center;">🏆 Galeria Sław (All-Time)</h2>
 
+    <div class="admin-only hidden card" style="background: #fff9e6; border: 1px solid #ffd700;">
+        <h3>⚙️ Zarządzanie Tabelami Tytułów</h3>
+        <div style="display:flex; gap:10px;">
+            <select id="hof-select-standing" class="search-input"></select>
+            <button class="btn btn-add" style="margin:0;" onclick="addHoFTable()">UTWÓRZ TABELĘ</button>
+        </div>
+        <div id="hof-active-tables" style="margin-top:10px; font-size:0.9rem;">
+            Aktywne: <span id="hof-tags"></span>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
+        <div class="card">
+            <h3>🥇 Najwięcej Zwycięstw (PŚ)</h3>
+            <table id="table-hof-wins"><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead><tbody id="body-hof-wins"></tbody></table>
+            <button class="btn" style="width:100%; margin-top:5px;" onclick="toggleHofRows('body-hof-wins')">Pokaż więcej</button>
+        </div>
+        <div class="card">
+            <h3>🥈 Najwięcej Podiów (PŚ)</h3>
+            <table id="table-hof-pods"><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead><tbody id="body-hof-pods"></tbody></table>
+            <button class="btn" style="width:100%; margin-top:5px;" onclick="toggleHofRows('body-hof-pods')">Pokaż więcej</button>
+        </div>
+    </div>
+
+    <div class="event-grid" style="margin-top:20px;">
+        <div class="card"><h4>🥇 Złota IO</h4><table id="table-hof-io"><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead><tbody id="body-hof-io"></tbody></table></div>
+        <div class="card"><h4>🏆 Złota MŚ</h4><table id="table-hof-ms"><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead><tbody id="body-hof-ms"></tbody></table></div>
+        <div class="card"><h4>✈️ Złota MŚL</h4><table id="table-hof-msl"><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead><tbody id="body-hof-msl"></tbody></table></div>
+    </div>
+
+    <h3 style="text-align:center; margin-top:30px;">🏆 Klasyfikacje Końcowe (Tytuły)</h3>
+    <div id="hof-dynamic-titles" style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;"></div>
+</div>
     <div id="page-season-tiles" class="hidden"><button class="btn" onclick="showPage('page-home')">← Powrót</button><h2 id="tiles-title">...</h2><div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;"><div class="card" onclick="showPage('page-calendar')"><h2>📅 Kalendarz</h2></div><div class="card" onclick="showPage('page-standings-selection')"><h2>🏆 Klasyfikacje</h2></div></div></div>
     <div id="page-skoczkowie" class="hidden"><h2>Baza Skoczków</h2><button class="btn btn-add admin-only hidden" onclick="addSkoczek()">+ Dodaj</button><table><thead><tr><th>Imię</th><th>Profil</th><th class="admin-only hidden">X</th></tr></thead><tbody id="skoczkowie-list"></tbody></table></div>
     <div id="page-standings-selection" class="hidden"><button class="btn" onclick="showPage('page-season-tiles')">← Powrót</button><h2>Rankingi</h2><div id="standings-user-list"></div></div>
@@ -637,7 +674,7 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
     window.filterLocalList = function(i, lId) { const v = i.value.toUpperCase(); const l = document.getElementById(lId); l.style.display = 'block'; Array.from(l.children).forEach(d => { d.style.display = d.innerText.toUpperCase().includes(v) ? 'block' : 'none'; }); };
     window.confirmJumper = function(rId, n) { db.ref(`wyniki/${activeCompId}/${rId}`).update({name: n}); };
     window.confirmHill = function(cId, n) { db.ref(`kalendarze/${activeSeasonId}/${cId}`).update({loc: n}); };
-    function showPage(p) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(p).classList.remove('hidden'); if(p==='page-standings-selection') refreshStandingsSelection(); }
+    function showPage(p) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(p).classList.remove('hidden'); if(p==='page-standings-selection') refreshStandingsSelection(); if(p==='page-galeria') renderHallOfFame(); }
     function openSeason(id, n) { activeSeasonId = id; document.getElementById('tiles-title').innerText = n; showPage('page-season-tiles'); db.ref('kalendarze/'+id).on('value', s => renderCalendar(Object.values(s.val()||{}))); }
     function addSeason() { const n = prompt("Nazwa:"); if(n) db.ref('sezony/'+Date.now()).set({id:Date.now().toString(), name:n}); }
     function addSkoczek() { const n=prompt("Imię:"); if(n) db.ref('skoczkowie/'+Date.now()).set({id: Date.now().toString(), name:n}); }
@@ -714,6 +751,123 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
     async function refreshStandingsSelection() { const gL = (await db.ref('global_klasyfikacje').once('value')).val() || {}, list = document.getElementById('standings-user-list'); if(!list) return; list.innerHTML = ''; Object.entries(gL).forEach(([gid, st]) => { list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><b>${st.name}</b><button class="btn" style="background:var(--primary); color:white;" onclick="viewStanding('${gid}','${st.name}')">Ranking</button></div>`; }); }
 
     document.addEventListener('click', e => { if(!e.target.classList.contains('search-input')) document.querySelectorAll('.suggestions-list').forEach(d => d.style.display = 'none'); });
+// Globalna zmienna do obsługi "Pokaż więcej"
+let hofExpanded = {};
+
+// 1. Inicjalizacja i agregacja danych
+async function renderHallOfFame() {
+    const allR = (await db.ref('wyniki').once('value')).val() || {};
+    const allC = (await db.ref('kalendarze').once('value')).val() || {};
+    const stats = {}; 
+
+    // Przeszukujemy wszystkie wyniki
+    for(let sid in allC) {
+        for(let cid in allC[sid]) {
+            const comp = allC[sid][cid];
+            const ranked = getRanks(Object.values(allR[cid]||{}));
+
+            ranked.forEach(r => {
+                if(!stats[r.name]) stats[r.name] = { psWins:0, psPods:0, ioGold:0, msGold:0, mslGold:0, titles:{} };
+                
+                // TYLKO Puchar Świata (konkurs)
+                if(comp.type === 'konkurs') {
+                    if(r.rank === 1) stats[r.name].psWins++;
+                    if(r.rank <= 3) stats[r.name].psPods++;
+                }
+                // Imprezy mistrzowskie (tylko złota)
+                if(comp.type === 'io' && r.rank === 1) stats[r.name].ioGold++;
+                if(comp.type === 'ms' && r.rank === 1) stats[r.name].msGold++;
+                if(comp.type === 'msl' && r.rank === 1) stats[r.name].mslGold++;
+            });
+        }
+    }
+
+    // Funkcja pomocnicza do renderowania tabeli
+    const fillHofTable = (dataKey, bodyId, limit = 5) => {
+        const sorted = Object.entries(stats)
+            .map(([name, val]) => ({name, val: val[dataKey]}))
+            .filter(x => x.val > 0)
+            .sort((a,b) => b.val - a.val);
+        
+        const body = document.getElementById(bodyId);
+        const isExp = hofExpanded[bodyId];
+        const displayData = isExp ? sorted : sorted.slice(0, 5);
+        
+        body.innerHTML = displayData.map((s, i) => `<tr><td>${i+1}.</td><td><b>${s.name}</b></td><td>${s.val}</td></tr>`).join('');
+    };
+
+    fillHofTable('psWins', 'body-hof-wins');
+    fillHofTable('psPods', 'body-hof-pods');
+    fillHofTable('ioGold', 'body-hof-io');
+    fillHofTable('msGold', 'body-hof-ms');
+    fillHofTable('mslGold', 'body-hof-msl');
+
+    renderHofDynamicTitles();
+    updateHofAdminControls();
+}
+
+// 2. Dynamiczne tabele tytułów (dodawane przez admina)
+async function renderHofDynamicTitles() {
+    const hofTablesSnap = await db.ref('status/hall_of_fame_tables').once('value');
+    const activeIds = hofTablesSnap.val() || {};
+    const container = document.getElementById('hof-dynamic-titles');
+    container.innerHTML = '';
+
+    const allJumpers = (await db.ref('skoczkowie').once('value')).val() || {};
+    
+    for(let gid in activeIds) {
+        let winners = {};
+        // Zliczamy ile razy kto był 1. w danej klasyfikacji (z historii profilu)
+        Object.values(allJumpers).forEach(sk => {
+            if(sk.historia_rankingow) {
+                Object.values(sk.historia_rankingow).forEach(rec => {
+                    if(rec.standingName === activeIds[gid] && parseInt(rec.rank) === 1) {
+                        winners[sk.name] = (winners[sk.name] || 0) + 1;
+                    }
+                });
+            }
+        });
+
+        const sortedWinners = Object.entries(winners).sort((a,b) => b[1] - a[1]);
+        const bodyId = `body-dynamic-${gid}`;
+        const isExp = hofExpanded[bodyId];
+        const displayData = isExp ? sortedWinners : sortedWinners.slice(0, 5);
+
+        container.innerHTML += `
+            <div class="card">
+                <h4>🏆 ${activeIds[gid]}</h4>
+                <table><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead>
+                <tbody id="${bodyId}">${displayData.map((s,i) => `<tr><td>${i+1}.</td><td><b>${s[0]}</b></td><td>${s[1]}</td></tr>`).join('')}</tbody>
+                </table>
+                <button class="btn" style="width:100%; margin-top:5px;" onclick="toggleHofRows('${bodyId}')">${isExp ? 'Pokaż mniej' : 'Pokaż więcej'}</button>
+            </div>`;
+    }
+}
+
+// 3. Funkcje Admina dla Galerii
+function updateHofAdminControls() {
+    db.ref('global_klasyfikacje').once('value', s => {
+        const select = document.getElementById('hof-select-standing');
+        select.innerHTML = Object.values(s.val()||{}).map(x => `<option value="${x.name}">${x.name}</option>`).join('');
+    });
+    db.ref('status/hall_of_fame_tables').on('value', s => {
+        const tags = document.getElementById('hof-tags');
+        tags.innerHTML = '';
+        Object.entries(s.val()||{}).forEach(([id, name]) => {
+            tags.innerHTML += `<span class="q-badge" style="background:red; color:white; cursor:pointer;" onclick="db.ref('status/hall_of_fame_tables/${id}').remove()">${name} X</span> `;
+        });
+    });
+}
+
+function addHoFTable() {
+    const name = document.getElementById('hof-select-standing').value;
+    db.ref('status/hall_of_fame_tables').push(name);
+}
+
+function toggleHofRows(id) {
+    hofExpanded[id] = !hofExpanded[id];
+    renderHallOfFame();
+}
 </script>
 </script>
 </body>
