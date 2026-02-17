@@ -216,6 +216,20 @@
 
     <h3 style="text-align:center; margin-top:30px;">🏆 Klasyfikacje Końcowe (Tytuły)</h3>
     <div id="hof-dynamic-titles" style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;"></div>
+<div class="card" style="margin-top: 30px; border: 1px solid #003366;">
+        <h3 style="text-align:center;">🚀 Najdłuższe Loty (Rekordy Życiowe)</h3>
+        <table id="table-hof-pb">
+            <thead>
+                <tr>
+                    <th style="width:50px;">Poz.</th>
+                    <th>Zawodnik</th>
+                    <th style="width:100px;">Odległość</th>
+                </tr>
+            </thead>
+            <tbody id="body-hof-pb"></tbody>
+        </table>
+        <button class="btn" style="width:100%; margin-top:5px;" onclick="toggleHofRows('body-hof-pb')">Pokaż więcej</button>
+    </div>
 </div>
     <div id="page-season-tiles" class="hidden"><button class="btn" onclick="showPage('page-home')">← Powrót</button><h2 id="tiles-title">...</h2><div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;"><div class="card" onclick="showPage('page-calendar')"><h2>📅 Kalendarz</h2></div><div class="card" onclick="showPage('page-standings-selection')"><h2>🏆 Klasyfikacje</h2></div></div></div>
     <div id="page-skoczkowie" class="hidden"><h2>Baza Skoczków</h2><button class="btn btn-add admin-only hidden" onclick="addSkoczek()">+ Dodaj</button><table><thead><tr><th>Imię</th><th>Profil</th><th class="admin-only hidden">X</th></tr></thead><tbody id="skoczkowie-list"></tbody></table></div>
@@ -486,108 +500,194 @@
     }
 
     // --- PROFIL (ZLICZANIE TYLKO ZŁOTA DLA IO, MŚ, MŚL) ---
-    async function openProfile(name) {
-        showPage('page-profile'); document.getElementById('prof-name').innerText = name;
-        
-        // Zmieniamy strukturę 's' - dodajemy liczniki złota dla każdej imprezy
-        let hist = [], s = { 
-            wins:[], pods:[], hillDom:{},
-            io_all:[], io_gold: 0, 
-            ms_all:[], ms_gold: 0, 
-            msl_all:[], msl_gold: 0 
+   async function openProfile(name) {
+    showPage('page-profile');
+    document.getElementById('prof-name').innerText = name;
+
+    // Zmienne do statystyk
+    let hist = [],
+        s = {
+            wins: [],
+            pods: [],
+            hillDom: {},
+            io_all: [],
+            io_gold: 0,
+            ms_all: [],
+            ms_gold: 0,
+            msl_all: [],
+            msl_gold: 0
         };
-        
-        const allR = (await db.ref('wyniki').once('value')).val()||{}, allC = (await db.ref('kalendarze').once('value')).val()||{};
-        
-        const jumperObj = globalSkoczkowie.find(j => j.name === name);
-        const finalStandingsDiv = document.getElementById('prof-final-records-global');
-        finalStandingsDiv.innerHTML = 'Ładowanie...';
-        
-        if(jumperObj) {
-            db.ref(`skoczkowie/${jumperObj.id}/historia_rankingow`).once('value', sn => {
-                const h = sn.val();
-                if(!h) { finalStandingsDiv.innerHTML = 'Brak wpisów archiwalnych.'; return; }
-                let html = '<table><thead><tr><th>Sezon</th><th>Ranking</th><th>Miejsce</th><th class="col-total">Nota</th></tr></thead><tbody>';
-                Object.values(h).sort((a,b)=>b.seasonName.localeCompare(a.seasonName)).forEach(rec => {
-                    let color = rec.rank == 1 ? '#ffd700' : (rec.rank == 2 ? '#c0c0c0' : (rec.rank == 3 ? '#cd7f32' : 'inherit'));
-                    let weight = rec.rank <= 3 ? 'bold' : 'normal';
-                    html += `<tr style="color:${color}; font-weight:${weight}"><td>${rec.seasonName}</td><td>${rec.standingName}</td><td>${rec.rank}</td><td>${rec.score}</td></tr>`;
-                });
-                html += '</tbody></table>';
-                finalStandingsDiv.innerHTML = html;
-            });
-        } else {
-            finalStandingsDiv.innerHTML = 'Brak powiązanego konta.';
-        }
 
-       for(let sid in allC) {
-    for(let cid in allC[sid]) {
-        const comp = allC[sid][cid], ranked = getRanks(Object.values(allR[cid]||{}));
-        
-        // POMIJAJ KWALI I TRENING W PROFILU
-        if(comp.type === 'kwali' || comp.type === 'trening'|| comp.type === 'duety') continue;
+    // --- NOWE: Zmienna do Rekordu Życiowego ---
+    let calculatedPB = 0;
+    // ------------------------------------------
 
-        ranked.forEach(r => { if(r.name === name) {
-            const e = `${comp.date}: <b>${r.rank}.</b> (${comp.loc})`;
-            hist.push({d: comp.date, l: comp.loc, r: r.rank});
-                    
-                    if(comp.type === 'konkurs') { 
-                        if(r.rank===1) { s.wins.push(e); s.hillDom[comp.loc] = (s.hillDom[comp.loc]||0)+1; } 
-                        if(r.rank<=3) s.pods.push(e); 
-                    }
-                    
-                    // --- IGRZYSKA (IO) ---
-                    if(comp.type==='io') {
-                        s.io_all.push(e); // Lista wszystkich
-                        if(r.rank === 1) s.io_gold++; // Licznik złota
-                    } 
-                    
-                    // --- MISTRZOSTWA ŚWIATA (MŚ) ---
-                    if(comp.type==='ms') {
-                        s.ms_all.push(e); // Lista wszystkich
-                        if(r.rank === 1) s.ms_gold++; // Licznik złota
-                    }
-                    
-                    // --- MŚ W LOTACH (MŚL) ---
-                    if(comp.type==='msl') {
-                        s.msl_all.push(e); // Lista wszystkich
-                        if(r.rank === 1) s.msl_gold++; // Licznik złota
-                    }
-                }});
+    const allR = (await db.ref('wyniki').once('value')).val() || {},
+          allC = (await db.ref('kalendarze').once('value')).val() || {};
+
+    const jumperObj = globalSkoczkowie.find(j => j.name === name);
+    const finalStandingsDiv = document.getElementById('prof-final-records-global');
+    finalStandingsDiv.innerHTML = 'Ładowanie...';
+
+    // Historia rankingów (bez zmian)
+    if (jumperObj) {
+        db.ref(`skoczkowie/${jumperObj.id}/historia_rankingow`).once('value', sn => {
+            const h = sn.val();
+            if (!h) {
+                finalStandingsDiv.innerHTML = 'Brak wpisów archiwalnych.';
+                return;
             }
-        }
-        hist.sort((a,b)=>b.d.localeCompare(a.d));
-        document.getElementById('prof-history-10').innerHTML = hist.slice(0,10).map(x=>`<tr><td>${x.d}</td><td>${x.l}</td><td><b>${x.r}</b></td></tr>`).join('');
-        document.getElementById('prof-history-full').innerHTML = hist.slice(10).map(x=>`<tr><td>${x.d}</td><td>${x.l}</td><td><b>${x.r}</b></td></tr>`).join('');
-        
-        document.getElementById('c-wins').innerText = s.wins.length; document.getElementById('prof-wins').innerHTML = s.wins.join('<br>') || 'Brak';
-        document.getElementById('c-pods').innerText = s.pods.length; document.getElementById('prof-pods').innerHTML = s.pods.join('<br>') || 'Brak';
-        
-        // --- AKTUALIZACJA LICZNIKÓW I LIST ---
-        document.getElementById('c-io').innerText = s.io_gold; 
-        document.getElementById('prof-io-list').innerHTML = s.io_all.join('<br>') || 'Brak startów';
-        
-        document.getElementById('ms-count').innerText = s.ms_gold; 
-        document.getElementById('prof-ms-list').innerHTML = s.ms_all.join('<br>') || 'Brak startów';
-
-        document.getElementById('msl-count').innerText = s.msl_gold; 
-        document.getElementById('prof-msl-list').innerHTML = s.msl_all.join('<br>') || 'Brak startów';
-        // -------------------------------------
-        
-        const chartDiv = document.getElementById('prof-hills-chart'); chartDiv.innerHTML = '';
-        const sortedHills = Object.entries(s.hillDom).sort((a,b)=>b[1]-a[1]);
-        if(sortedHills.length > 0) {
-            sortedHills.forEach(([loc, count]) => { chartDiv.innerHTML += `<div>${loc} (Wygrane: ${count})<div class="stat-bar-container"><div class="stat-bar-fill" style="width:${Math.min((count/5)*100, 100)}%"></div></div></div>`; });
-        } else { chartDiv.innerHTML = 'Brak zwycięstw.'; }
-
-        // Ta nowa wersja dzieli tekst po przecinkach, usuwa spacje i sprawdza czy imię jest na liście
-const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.trim()).includes(name));
-        document.getElementById('prof-rec-list').innerHTML = myRecs.length > 0 
-            ? myRecs.map(h => `<div>${h.name}: <b>${h.recKoDist}m</b></div>`).join('') 
-            : 'Brak rekordów skoczni.';
-            
-        db.ref('osiagniecia_specjalne').once('value', sr => { document.getElementById('prof-special-records').innerHTML = Object.values(sr.val()||{}).filter(x=>x.name===name).map(x=>`⭐ ${x.text}`).join('<br>') || 'Brak'; });
+            let html = '<table><thead><tr><th>Sezon</th><th>Ranking</th><th>Miejsce</th><th class="col-total">Nota</th></tr></thead><tbody>';
+            Object.values(h).sort((a, b) => b.seasonName.localeCompare(a.seasonName)).forEach(rec => {
+                let color = rec.rank == 1 ? '#ffd700' : (rec.rank == 2 ? '#c0c0c0' : (rec.rank == 3 ? '#cd7f32' : 'inherit'));
+                let weight = rec.rank <= 3 ? 'bold' : 'normal';
+                html += `<tr style="color:${color}; font-weight:${weight}"><td>${rec.seasonName}</td><td>${rec.standingName}</td><td>${rec.rank}</td><td>${rec.score}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            finalStandingsDiv.innerHTML = html;
+        });
+    } else {
+        finalStandingsDiv.innerHTML = 'Brak powiązanego konta.';
     }
+
+    // PĘTLA GŁÓWNA (Skanowanie wyników)
+    for (let sid in allC) {
+        for (let cid in allC[sid]) {
+            const comp = allC[sid][cid],
+                  ranked = getRanks(Object.values(allR[cid] || {}));
+
+            // Pomijamy treningi w statystykach, ALE rekord życiowy sprawdzamy wszędzie (nawet na treningu/kwali)
+            // Jeśli nie chcesz uwzględniać treningów w PB, dodaj warunek w sekcji poniżej.
+
+            ranked.forEach(r => {
+                // Sprawdzamy czy to ten zawodnik
+                const isMain = r.name === name;
+                const isSecond = r.name2 === name; // Dla duetów (jako zawodnik B)
+
+                if (isMain || isSecond) {
+                    
+                    // --- SEKCJA: Obliczanie PB (Skanujemy każdą serię) ---
+                    const fieldsToCheck = isMain ? ['s1', 's2', 's3', 's4'] : ['s1_b', 's2_b', 's3_b', 's4_b'];
+                    
+                    fieldsToCheck.forEach(f => {
+                        const val = parseFloat(r[f]);
+                        if (!isNaN(val) && val > calculatedPB) {
+                            calculatedPB = val;
+                        }
+                    });
+                    // -----------------------------------------------------
+
+                    // Dalsza część statystyk (tylko dla głównego typu i głównego nazwiska, żeby nie psuć wykresów)
+                    if (comp.type === 'kwali' || comp.type === 'trening' || comp.type === 'duety') return;
+                    if (!isMain) return; 
+
+                    const e = `${comp.date}: <b>${r.rank}.</b> (${comp.loc})`;
+                    hist.push({ d: comp.date, l: comp.loc, r: r.rank });
+
+                    if (comp.type === 'konkurs') {
+                        if (r.rank === 1) {
+                            s.wins.push(e);
+                            s.hillDom[comp.loc] = (s.hillDom[comp.loc] || 0) + 1;
+                        }
+                        if (r.rank <= 3) s.pods.push(e);
+                    }
+
+                    if (comp.type === 'io') {
+                        s.io_all.push(e);
+                        if (r.rank === 1) s.io_gold++;
+                    }
+                    if (comp.type === 'ms') {
+                        s.ms_all.push(e);
+                        if (r.rank === 1) s.ms_gold++;
+                    }
+                    if (comp.type === 'msl') {
+                        s.msl_all.push(e);
+                        if (r.rank === 1) s.msl_gold++;
+                    }
+                }
+            });
+        }
+    }
+
+    // --- WYŚWIETLANIE REKORDU ŻYCIOWEGO ---
+    // Pobieramy manualny rekord z obiektu skoczka
+    const manualPB = jumperObj && jumperObj.manualPB ? parseFloat(jumperObj.manualPB) : 0;
+    // Wybieramy większy: obliczony vs manualny
+    const finalPB = Math.max(calculatedPB, manualPB);
+
+    // Wstrzykujemy kartę z rekordem na górę profilu (lub w dowolne miejsce, tutaj dodaję nad Historią Startów)
+    // Budujemy HTML karty rekordu
+    const pbCardHtml = `
+        <div class="card" style="background: linear-gradient(135deg, #003366, #00509e); color: white; text-align: center; margin-bottom: 20px;">
+            <h3 style="margin:0; font-size:1.1rem; opacity:0.9;">🚀 REKORD ŻYCIOWY</h3>
+            <div style="font-size: 3rem; font-weight: bold; margin: 10px 0; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                ${finalPB.toFixed(1)} m
+            </div>
+            <div class="admin-only ${isAdmin ? '' : 'hidden'}" style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px; font-size: 0.85rem;">
+                🛠️ Admin Override (Minimum): 
+                <input type="number" step="0.5" 
+                    value="${manualPB}" 
+                    style="width: 70px; padding: 4px; border-radius: 4px; border: none; text-align: center;" 
+                    onchange="updateManualPB('${jumperObj ? jumperObj.id : ''}', this.value)">
+                <div style="font-size:0.7rem; color:#ccc; margin-top:2px;">(Wpisz 0 aby zresetować do auto)</div>
+            </div>
+        </div>
+    `;
+
+    // Renderowanie list historycznych
+    hist.sort((a, b) => b.d.localeCompare(a.d));
+    document.getElementById('prof-history-10').innerHTML = hist.slice(0, 10).map(x => `<tr><td>${x.d}</td><td>${x.l}</td><td><b>${x.r}</b></td></tr>`).join('');
+    document.getElementById('prof-history-full').innerHTML = hist.slice(10).map(x => `<tr><td>${x.d}</td><td>${x.l}</td><td><b>${x.r}</b></td></tr>`).join('');
+
+    document.getElementById('c-wins').innerText = s.wins.length;
+    document.getElementById('prof-wins').innerHTML = s.wins.join('<br>') || 'Brak';
+    document.getElementById('c-pods').innerText = s.pods.length;
+    document.getElementById('prof-pods').innerHTML = s.pods.join('<br>') || 'Brak';
+
+    document.getElementById('c-io').innerText = s.io_gold;
+    document.getElementById('prof-io-list').innerHTML = s.io_all.join('<br>') || 'Brak startów';
+    document.getElementById('ms-count').innerText = s.ms_gold;
+    document.getElementById('prof-ms-list').innerHTML = s.ms_all.join('<br>') || 'Brak startów';
+    document.getElementById('msl-count').innerText = s.msl_gold;
+    document.getElementById('prof-msl-list').innerHTML = s.msl_all.join('<br>') || 'Brak startów';
+
+    const chartDiv = document.getElementById('prof-hills-chart');
+    chartDiv.innerHTML = '';
+    const sortedHills = Object.entries(s.hillDom).sort((a, b) => b[1] - a[1]);
+    if (sortedHills.length > 0) {
+        sortedHills.forEach(([loc, count]) => {
+            chartDiv.innerHTML += `<div>${loc} (Wygrane: ${count})<div class="stat-bar-container"><div class="stat-bar-fill" style="width:${Math.min((count / 5) * 100, 100)}%"></div></div></div>`;
+        });
+    } else {
+        chartDiv.innerHTML = 'Brak zwycięstw.';
+    }
+
+    const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s => s.trim()).includes(name));
+    document.getElementById('prof-rec-list').innerHTML = myRecs.length > 0
+        ? myRecs.map(h => `<div>${h.name}: <b>${h.recKoDist}m</b></div>`).join('')
+        : 'Brak rekordów skoczni.';
+
+    db.ref('osiagniecia_specjalne').once('value', sr => {
+        document.getElementById('prof-special-records').innerHTML = Object.values(sr.val() || {}).filter(x => x.name === name).map(x => `⭐ ${x.text}`).join('<br>') || 'Brak';
+    });
+
+    // --- WSTRZYKNIĘCIE KARTY REKORDU DO DOM ---
+    // Najpierw czyścimy ew. stare wstrzyknięcia jeśli używasz `prepend`
+    const grid = document.querySelector('#page-profile .event-grid');
+    
+    // Sprytny sposób na wstawienie tego nad siatką statystyk ("event-grid"), 
+    // ale pod nagłówkiem imienia.
+    const existingPbCard = document.getElementById('pb-card-dynamic');
+    if(existingPbCard) existingPbCard.remove();
+    
+    const pbContainer = document.createElement('div');
+    pbContainer.id = 'pb-card-dynamic';
+    pbContainer.innerHTML = pbCardHtml;
+    
+    // Wstawiamy po nagłówku H1
+    const h1Name = document.getElementById('prof-name');
+    h1Name.parentNode.insertBefore(pbContainer, h1Name.nextSibling);
+}
 
     // --- SYSTEMOWE ---
     function addNewCompetitionDirectly() {
@@ -786,76 +886,128 @@ let hofExpanded = {};
 async function renderHallOfFame() {
     const allR = (await db.ref('wyniki').once('value')).val() || {};
     const allC = (await db.ref('kalendarze').once('value')).val() || {};
-    const stats = {}; 
+    // Pobieramy też listę skoczków, by mieć dostęp do manualPB
+    const allJumpers = globalSkoczkowie; 
 
-    // Przeszukujemy wszystkie wyniki
-    for(let sid in allC) {
-        for(let cid in allC[sid]) {
-            
-const comp = allC[sid][cid];
-if (comp.type === 'duety') continue; // Ignoruj duety w Galerii Sław
-            
-            const ranked = getRanks(Object.values(allR[cid]||{}));
+    const stats = {}; // Statystyki zwycięstw/podiów
+    const pbStats = {}; // Statystyki rekordów życiowych { "Nazwa": odleglosc }
+
+    // Funkcja pomocnicza do aktualizacji PB
+    const checkDist = (name, val) => {
+        const d = parseFloat(val);
+        if (!isNaN(d)) {
+            if (!pbStats[name]) pbStats[name] = 0;
+            if (d > pbStats[name]) pbStats[name] = d;
+        }
+    };
+
+    // 1. Przeszukujemy wszystkie wyniki (Zwycięstwa, Podia i Wyniki skoków)
+    for (let sid in allC) {
+        for (let cid in allC[sid]) {
+            const comp = allC[sid][cid];
+            // Pobieramy wyniki i sortujemy je
+            const rawResults = Object.values(allR[cid] || {});
+            const ranked = getRanks(rawResults);
 
             ranked.forEach(r => {
-                if(!stats[r.name]) stats[r.name] = { psWins:0, psPods:0, ioGold:0, msGold:0, mslGold:0, titles:{} };
-                
-                // TYLKO Puchar Świata (konkurs)
-                if(comp.type === 'konkurs') {
-                    if(r.rank === 1) stats[r.name].psWins++;
-                    if(r.rank <= 3) stats[r.name].psPods++;
+                // --- LOGIKA STATYSTYK TYTUŁÓW (BEZ ZMIAN) ---
+                if (comp.type !== 'duety') {
+                    if (!stats[r.name]) stats[r.name] = { psWins: 0, psPods: 0, ioGold: 0, msGold: 0, mslGold: 0 };
+                    
+                    if (comp.type === 'konkurs') {
+                        if (r.rank === 1) stats[r.name].psWins++;
+                        if (r.rank <= 3) stats[r.name].psPods++;
+                    }
+                    if (comp.type === 'io' && r.rank === 1) stats[r.name].ioGold++;
+                    if (comp.type === 'ms' && r.rank === 1) stats[r.name].msGold++;
+                    if (comp.type === 'msl' && r.rank === 1) stats[r.name].mslGold++;
                 }
-                // Imprezy mistrzowskie (tylko złota)
-                if(comp.type === 'io' && r.rank === 1) stats[r.name].ioGold++;
-                if(comp.type === 'ms' && r.rank === 1) stats[r.name].msGold++;
-                if(comp.type === 'msl' && r.rank === 1) stats[r.name].mslGold++;
+
+                // --- LOGIKA REKORDÓW ŻYCIOWYCH (NOWOŚĆ) ---
+                // Sprawdzamy głównego zawodnika
+                if (r.name) {
+                    checkDist(r.name, r.s1);
+                    checkDist(r.name, r.s2);
+                    checkDist(r.name, r.s3);
+                    checkDist(r.name, r.s4);
+                }
+                // Sprawdzamy drugiego zawodnika (jeśli to duety)
+                if (r.name2) {
+                    checkDist(r.name2, r.s1_b);
+                    checkDist(r.name2, r.s2_b);
+                    checkDist(r.name2, r.s3_b);
+                    checkDist(r.name2, r.s4_b);
+                }
             });
         }
     }
 
-    // Funkcja pomocnicza do renderowania tabeli
- // Funkcja pomocnicza z logiką ex aequo
+    // 2. Uwzględniamy Manualne PB ustawione przez Admina
+    allJumpers.forEach(j => {
+        const manual = parseFloat(j.manualPB) || 0;
+        const current = pbStats[j.name] || 0;
+        if (manual > current) {
+            pbStats[j.name] = manual;
+        }
+    });
+
+    // --- RENDEROWANIE TABEL ---
+
+    // Funkcja pomocnicza (bez zmian)
     const fillHofTable = (dataKey, bodyId) => {
         const sorted = Object.entries(stats)
-            .map(([name, val]) => ({name, val: val[dataKey]}))
+            .map(([name, val]) => ({ name, val: val[dataKey] }))
             .filter(x => x.val > 0)
-            .sort((a,b) => b.val - a.val);
-        
+            .sort((a, b) => b.val - a.val);
+
+        renderSortedTable(sorted, bodyId);
+    };
+
+    // Nowa funkcja renderująca tabelę (używana też do PB)
+    const renderSortedTable = (sortedData, bodyId) => {
         const body = document.getElementById(bodyId);
+        if(!body) return; // Zabezpieczenie
+        
         const isExp = hofExpanded[bodyId];
-        const displayData = isExp ? sorted : sorted.slice(0, 5);
         
         let lastVal = -1;
         let lastRank = 0;
         let html = '';
 
-        sorted.forEach((s, i) => {
-            // Logika wyliczania miejsca (rank)
-            let currentRank;
-            if (s.val === lastVal) {
-                currentRank = lastRank;
-            } else {
-                currentRank = i + 1;
-            }
+        sortedData.forEach((s, i) => {
+            let currentRank = (s.val === lastVal) ? lastRank : i + 1;
             lastVal = s.val;
             lastRank = currentRank;
 
-            // Renderujemy tylko te, które mieszczą się w limicie "Pokaż więcej"
             if (isExp || i < 5) {
-                html += `<tr><td>${currentRank}.</td><td><b>${s.name}</b></td><td>${s.val}</td></tr>`;
+                // Dla PB formatujemy wynik z "m", dla reszty zwykła liczba
+                const valDisplay = bodyId === 'body-hof-pb' ? `<b>${s.val.toFixed(1)} m</b>` : s.val;
+                html += `<tr><td>${currentRank}.</td><td><b>${s.name}</b></td><td>${valDisplay}</td></tr>`;
             }
         });
         body.innerHTML = html;
     };
+
+    // Wypełnianie standardowych tabel
     fillHofTable('psWins', 'body-hof-wins');
     fillHofTable('psPods', 'body-hof-pods');
     fillHofTable('ioGold', 'body-hof-io');
     fillHofTable('msGold', 'body-hof-ms');
     fillHofTable('mslGold', 'body-hof-msl');
 
+    // Wypełnianie tabeli PB
+    const sortedPB = Object.entries(pbStats)
+        .map(([name, val]) => ({ name, val }))
+        .filter(x => x.val > 0)
+        .sort((a, b) => b.val - a.val);
+    
+    renderSortedTable(sortedPB, 'body-hof-pb');
+
     renderHofDynamicTitles();
     updateHofAdminControls();
 }
+
+    
 
 // 2. Dynamiczne tabele tytułów (dodawane przez admina)
 async function renderHofDynamicTitles() {
@@ -946,6 +1098,9 @@ function calcResDuet(rid, f, v) {
             db.ref(`wyniki/${activeCompId}/${rid}`).update({total: sum});
         });
     });
+}
+function updateManualPB(id, val) {
+    db.ref('skoczkowie/' + id).update({ manualPB: parseFloat(val) || 0 });
 }
 </script>
 </script>
