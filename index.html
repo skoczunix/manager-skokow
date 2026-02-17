@@ -783,7 +783,8 @@ async function renderHallOfFame() {
     }
 
     // Funkcja pomocnicza do renderowania tabeli
-    const fillHofTable = (dataKey, bodyId, limit = 5) => {
+ // Funkcja pomocnicza z logiką ex aequo
+    const fillHofTable = (dataKey, bodyId) => {
         const sorted = Object.entries(stats)
             .map(([name, val]) => ({name, val: val[dataKey]}))
             .filter(x => x.val > 0)
@@ -793,9 +794,28 @@ async function renderHallOfFame() {
         const isExp = hofExpanded[bodyId];
         const displayData = isExp ? sorted : sorted.slice(0, 5);
         
-        body.innerHTML = displayData.map((s, i) => `<tr><td>${i+1}.</td><td><b>${s.name}</b></td><td>${s.val}</td></tr>`).join('');
-    };
+        let lastVal = -1;
+        let lastRank = 0;
+        let html = '';
 
+        sorted.forEach((s, i) => {
+            // Logika wyliczania miejsca (rank)
+            let currentRank;
+            if (s.val === lastVal) {
+                currentRank = lastRank;
+            } else {
+                currentRank = i + 1;
+            }
+            lastVal = s.val;
+            lastRank = currentRank;
+
+            // Renderujemy tylko te, które mieszczą się w limicie "Pokaż więcej"
+            if (isExp || i < 5) {
+                html += `<tr><td>${currentRank}.</td><td><b>${s.name}</b></td><td>${s.val}</td></tr>`;
+            }
+        });
+        body.innerHTML = html;
+    };
     fillHofTable('psWins', 'body-hof-wins');
     fillHofTable('psPods', 'body-hof-pods');
     fillHofTable('ioGold', 'body-hof-io');
@@ -817,7 +837,6 @@ async function renderHofDynamicTitles() {
     
     for(let gid in activeIds) {
         let winners = {};
-        // Zliczamy ile razy kto był 1. w danej klasyfikacji (z historii profilu)
         Object.values(allJumpers).forEach(sk => {
             if(sk.historia_rankingow) {
                 Object.values(sk.historia_rankingow).forEach(rec => {
@@ -831,13 +850,26 @@ async function renderHofDynamicTitles() {
         const sortedWinners = Object.entries(winners).sort((a,b) => b[1] - a[1]);
         const bodyId = `body-dynamic-${gid}`;
         const isExp = hofExpanded[bodyId];
-        const displayData = isExp ? sortedWinners : sortedWinners.slice(0, 5);
+
+        let lastVal = -1;
+        let lastRank = 0;
+        let rowsHtml = '';
+
+        sortedWinners.forEach((s, i) => {
+            let currentRank = (s[1] === lastVal) ? lastRank : i + 1;
+            lastVal = s[1];
+            lastRank = currentRank;
+
+            if (isExp || i < 5) {
+                rowsHtml += `<tr><td>${currentRank}.</td><td><b>${s[0]}</b></td><td>${s[1]}</td></tr>`;
+            }
+        });
 
         container.innerHTML += `
             <div class="card">
                 <h4>🏆 ${activeIds[gid]}</h4>
                 <table><thead><tr><th>Poz.</th><th>Zawodnik</th><th>Suma</th></tr></thead>
-                <tbody id="${bodyId}">${displayData.map((s,i) => `<tr><td>${i+1}.</td><td><b>${s[0]}</b></td><td>${s[1]}</td></tr>`).join('')}</tbody>
+                <tbody id="${bodyId}">${rowsHtml}</tbody>
                 </table>
                 <button class="btn" style="width:100%; margin-top:5px;" onclick="toggleHofRows('${bodyId}')">${isExp ? 'Pokaż mniej' : 'Pokaż więcej'}</button>
             </div>`;
