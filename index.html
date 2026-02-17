@@ -143,7 +143,8 @@
             <div id="global-checkboxes"></div>
         </div>
         <button id="add-result-btn" class="btn btn-add admin-only hidden" onclick="addResultRow()">+ Skoczek</button>
-        <table><thead><tr><th class="col-rank">Poz.</th><th class="col-name">Zawodnik</th><th class="col-score">S1</th><th class="s2-col col-score">S2</th><th class="msl-extra hidden col-score">S3</th><th class="msl-extra hidden col-score">S4</th><th class="col-score">Strata</th><th class="col-total">Nota</th><th class="admin-only hidden col-action">X</th></tr></thead><tbody id="results-body"></tbody></table>
+        <table><thead><tr><th class="col-rank">Poz.</th><th class="col-name">Zawodnik</th><th class="col-score">S1</th><th class="s2-col col-score">S2</th><th class="msl-extra hidden col-score">S3</th><th class="msl-extra hidden col-score">S4</th><th class="s3-col hidden col-score">S3</th>
+<th class="s4-col hidden col-score">S4</th><th class="col-score">Strata</th><th class="col-total">Nota</th><th class="admin-only hidden col-action">X</th></tr></thead><tbody id="results-body"></tbody></table>
     </div>
 
     <div id="page-profile" class="hidden">
@@ -524,7 +525,7 @@
         const comp = allC[sid][cid], ranked = getRanks(Object.values(allR[cid]||{}));
         
         // POMIJAJ KWALI I TRENING W PROFILU
-        if(comp.type === 'kwali' || comp.type === 'trening') continue;
+        if(comp.type === 'kwali' || comp.type === 'trening'|| comp.type === 'duety') continue;
 
         ranked.forEach(r => { if(r.name === name) {
             const e = `${comp.date}: <b>${r.rank}.</b> (${comp.loc})`;
@@ -622,57 +623,78 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
     }
 
     // STRICT RENDERING: RESULTS
-   function refreshResultsView() {
-        // Nasłuchujemy danych konkursu, aby mieć aktualny qLimit i typ
-        db.ref(`kalendarze/${activeSeasonId}/${activeCompId}`).on('value', compSnap => {
-            const compData = compSnap.val() || {};
-            const qL = compData.qLimit || 30; // Pobiera limit z bazy, nie z inputa
+  
+ function refreshResultsView() {
+    db.ref(`kalendarze/${activeSeasonId}/${activeCompId}`).on('value', compSnap => {
+        const compData = compSnap.val() || {};
+        const qL = compData.qLimit || 30;
 
-            db.ref('wyniki/'+activeCompId).on('value', s => {
-                const data = Object.values(s.val()||{}).filter(x => x && x.id);
-                const ranked = getRanks([...data]);
-                const leaderScore = ranked.length > 0 ? (parseFloat(ranked[0].total) || 0) : 0;
+        db.ref('wyniki/'+activeCompId).on('value', s => {
+            const data = Object.values(s.val()||{}).filter(x => x && x.id);
+            const ranked = getRanks([...data]);
+            const leaderScore = ranked.length > 0 ? (parseFloat(ranked[0].total) || 0) : 0;
+            
+            const b = document.getElementById('results-body'); b.innerHTML = '';
+            
+            // PRECYZYJNE UKRYWANIE KOLUMN
+            document.querySelectorAll('.s3-col').forEach(el => (activeType === 'msl' || activeType === 'duety') ? el.classList.remove('hidden') : el.classList.add('hidden'));
+            document.querySelectorAll('.s4-col').forEach(el => (activeType === 'msl') ? el.classList.remove('hidden') : el.classList.add('hidden'));
+            document.querySelectorAll('.s2-col').forEach(el => (activeType==='kwali' || activeType==='trening') ? el.classList.add('hidden') : el.classList.remove('hidden'));
+
+            ranked.forEach(r => {
+                const currentTotal = parseFloat(r.total) || 0;
+                const strata = r.rank === 1 ? "---" : (currentTotal - leaderScore).toFixed(1);
                 
-                const b = document.getElementById('results-body'); b.innerHTML = '';
-                
-                // Aktualizacja widoczności kolumn
-                document.querySelectorAll('.msl-extra').forEach(el=>activeType==='msl'?el.classList.remove('hidden'):el.classList.add('hidden'));
-                document.querySelectorAll('.s2-col').forEach(el=>(activeType==='kwali' || activeType==='trening') ? el.classList.add('hidden') : el.classList.remove('hidden'));
-                
-                ranked.forEach(r => {
-                    const currentTotal = parseFloat(r.total) || 0;
-                    const strata = r.rank === 1 ? "---" : (currentTotal - leaderScore).toFixed(1);
-                    const isQ = (r.rank <= qL) ? '<span class="q-badge">[Q]</span>' : '';
-                    
-                    let nameCell = isAdmin 
+                let nameCell = "";
+                if (activeType === 'duety') {
+                    nameCell = isAdmin 
+                        ? `<div style="display:flex; flex-direction:column; gap:4px;">
+                             <input type="text" class="search-input" value="${r.name||''}" placeholder="Skoczek 1" oninput="filterLocalList(this, 'l1-${r.id}')" onfocus="document.getElementById('l1-${r.id}').style.display='block'">
+                             <div id="l1-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div>
+                             <input type="text" class="search-input" value="${r.name2||''}" placeholder="Skoczek 2" oninput="filterLocalList(this, 'l2-${r.id}')" onfocus="document.getElementById('l2-${r.id}').style.display='block'">
+                             <div id="l2-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper2('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div>
+                           </div>`
+                        : `<b>${r.name}</b><br><b>${r.name2||'---'}</b>`;
+                } else {
+                    nameCell = isAdmin 
                         ? `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${r.name}" oninput="filterLocalList(this, 'list-${r.id}')" onfocus="document.getElementById('list-${r.id}').style.display='block'"><div id="list-${r.id}" class="suggestions-list">${globalSkoczkowie.map(sk => `<div class="suggestion-item" onclick="confirmJumper('${r.id}', '${sk.name}')">${sk.name}</div>`).join('')}</div></div>`
                         : `<b>${r.name}</b>`;
+                }
 
-                    const editAttr = isAdmin ? 'contenteditable="true"' : '';
-                    
-                   let row = `<tr>
-        <td>${r.rank}${isQ}</td>
-        <td>${nameCell}</td>
-        <td ${editAttr} onfocus="liveToBeat('${r.id}','s1',${leaderScore})" onblur="calcRes('${r.id}','s1',this.innerText)">${r.s1}</td>`;
-    
-    if(activeType!=='kwali' && activeType!=='trening') row += `<td class="s2-col" ${editAttr} onfocus="liveToBeat('${r.id}','s2',${leaderScore})" onblur="calcRes('${r.id}','s2',this.innerText)">${r.s2}</td>`;
-    
-    // Dodano onfocus dla serii 3 i 4 (MŚL)
-    if(activeType==='msl') {
-        row += `<td ${editAttr} onfocus="liveToBeat('${r.id}','s3',${leaderScore})" onblur="calcRes('${r.id}','s3',this.innerText)">${r.s3}</td>
-                <td ${editAttr} onfocus="liveToBeat('${r.id}','s4',${leaderScore})" onblur="calcRes('${r.id}','s4',this.innerText)">${r.s4}</td>`;
-    }
-                    // Dodajemy kolumnę ze stratą przed notą końcową
-                    row += `<td>${strata}</td><td class="col-total">${currentTotal.toFixed(1)}</td>`;
-                    row += `<td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
-                    
-                    b.innerHTML += row;
-                });
+                const editAttr = isAdmin ? 'contenteditable="true"' : '';
+                
+                // POMOCNIK RENDEROWANIA SERII (Z PRZYWRÓCONYM ONFOCUS)
+                const renderSerie = (f1, f2, extraClass = '') => {
+                    if (activeType === 'duety') {
+                        return `<td class="${extraClass}">
+                                    <div style="font-size:0.75rem; color:#888;">A:</div>
+                                    <div ${editAttr} onfocus="liveToBeat('${r.id}','${f1}',${leaderScore})" onblur="calcResDuet('${r.id}','${f1}',this.innerText)">${r[f1]||'-'}</div>
+                                    <div style="font-size:0.75rem; color:#888; border-top:1px solid #eee; margin-top:2px;">B:</div>
+                                    <div ${editAttr} onfocus="liveToBeat('${r.id}','${f2}',${leaderScore})" onblur="calcResDuet('${r.id}','${f2}',this.innerText)">${r[f2]||'-'}</div>
+                                </td>`;
+                    } else {
+                        return `<td class="${extraClass}" ${editAttr} onfocus="liveToBeat('${r.id}','${f1}',${leaderScore})" onblur="calcRes('${r.id}','${f1}',this.innerText)">${r[f1]||'-'}</td>`;
+                    }
+                };
+
+                let row = `<tr><td>${r.rank}${ (r.rank <= qL && activeType !== 'duety') ? '<span class="q-badge">[Q]</span>' : '' }</td><td>${nameCell}</td>`;
+                row += renderSerie('s1', 's1_b');
+                if(activeType !== 'kwali' && activeType !== 'trening') row += renderSerie('s2', 's2_b', 's2-col');
+                if(activeType === 'msl' || activeType === 'duety') row += renderSerie('s3', 's3_b', 's3-col');
+                if(activeType === 'msl') row += renderSerie('s4', 's4_b', 's4-col');
+
+                row += `<td>${strata}</td><td class="col-total">${currentTotal.toFixed(1)}</td>`;
+                row += `<td class="admin-only ${isAdmin?'':'hidden'} col-action"><button class="btn btn-del" onclick="db.ref('wyniki/${activeCompId}/${r.id}').remove()">X</button></td></tr>`;
+                
+                b.innerHTML += row;
             });
         });
-    }
-    window.filterLocalList = function(i, lId) { const v = i.value.toUpperCase(); const l = document.getElementById(lId); l.style.display = 'block'; Array.from(l.children).forEach(d => { d.style.display = d.innerText.toUpperCase().includes(v) ? 'block' : 'none'; }); };
+    });
+}   window.filterLocalList = function(i, lId) { const v = i.value.toUpperCase(); const l = document.getElementById(lId); l.style.display = 'block'; Array.from(l.children).forEach(d => { d.style.display = d.innerText.toUpperCase().includes(v) ? 'block' : 'none'; }); };
     window.confirmJumper = function(rId, n) { db.ref(`wyniki/${activeCompId}/${rId}`).update({name: n}); };
+window.confirmJumper2 = function(rId, n) { 
+    db.ref(`wyniki/${activeCompId}/${rId}`).update({name2: n}); 
+};
     window.confirmHill = function(cId, n) { db.ref(`kalendarze/${activeSeasonId}/${cId}`).update({loc: n}); };
     function showPage(p) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(p).classList.remove('hidden'); if(p==='page-standings-selection') refreshStandingsSelection(); if(p==='page-galeria') renderHallOfFame(); }
     function openSeason(id, n) { activeSeasonId = id; document.getElementById('tiles-title').innerText = n; showPage('page-season-tiles'); db.ref('kalendarze/'+id).on('value', s => renderCalendar(Object.values(s.val()||{}))); }
@@ -689,20 +711,26 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
     }
 
     // LIVE TO BEAT - ADMIN SENDS, EVERYONE SEES
-    function liveToBeat(rid, ser, leader) { 
+    function liveToBeat(rid, field, leader) { 
     if(!isAdmin) return; 
     db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => { 
         const d = s.val(); 
         if(!d) return; 
         
+        // Logika sumowania wszystkiego, co było PRZED aktualnie klikniętym polem
         let sumaPrzed = 0;
-        if(ser === 's2') sumaPrzed = parseFloat(d.s1 || 0);
-        if(ser === 's3') sumaPrzed = parseFloat(d.s1 || 0) + parseFloat(d.s2 || 0);
-        if(ser === 's4') sumaPrzed = parseFloat(d.s1 || 0) + parseFloat(d.s2 || 0) + parseFloat(d.s3 || 0);
+        const order = ['s1', 's1_b', 's2', 's2_b', 's3', 's3_b', 's4'];
+        for (let f of order) {
+            if (f === field) break;
+            sumaPrzed += parseFloat(d[f] || 0);
+        }
 
         const needed = (leader - sumaPrzed).toFixed(1);
-        // Wysyłamy do bazy - to sprawia, że zmienia się u wszystkich
-        db.ref('status/liveToBeat').set(`Aby prowadzić: ${needed} m (Skacze: ${d.name})`);
+        
+        // Wykrywamy kto aktualnie skacze dla komunikatu
+        let jumperName = (field.endsWith('_b')) ? (d.name2 || "Skoczek B") : (d.name || "Skoczek A");
+        
+        db.ref('status/liveToBeat').set(`Aby prowadzić: ${needed} m (Skacze: ${jumperName})`);
     }); 
 }
     
@@ -721,7 +749,7 @@ const myRecs = globalHills.filter(h => (h.recKoAuth || "").split(',').map(s=>s.t
                 locCell = c.loc;
             }
 
-            b.innerHTML += `<tr><td contenteditable="${isAdmin}" onblur="if(isAdmin) db.ref('kalendarze/${activeSeasonId}/${c.id}').update({date:this.innerText})">${c.date}</td><td><select class="${isAdmin?'':'hidden'}" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({type:this.value})"><option value="konkurs" ${c.type==='konkurs'?'selected':''}>Konkurs</option><option value="kwali" ${c.type==='kwali'?'selected':''}>Kwalifikacje</option><option value="trening" ${c.type==='trening'?'selected':''}>Trening</option><option value="ms" ${c.type==='ms'?'selected':''}>MŚ</option><option value="io" ${c.type==='io'?'selected':''}>IO</option><option value="msl" ${c.type==='msl'?'selected':''}>MŚL</option></select><span class="${isAdmin?'hidden':''}">${c.type.toUpperCase()}</span></td><td>${locCell}</td><td><button class="btn" style="background:var(--primary); color:white;" onclick="openResults('${c.id}','${c.loc}','${c.type}')">Wyniki</button> ${isAdmin?`<button class="btn btn-del" onclick="db.ref('kalendarze/${activeSeasonId}/${c.id}').remove()">X</button>`:''}</td></tr>`; 
+            b.innerHTML += `<tr><td contenteditable="${isAdmin}" onblur="if(isAdmin) db.ref('kalendarze/${activeSeasonId}/${c.id}').update({date:this.innerText})">${c.date}</td><td><select class="${isAdmin?'':'hidden'}" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({type:this.value})"><option value="konkurs" ${c.type==='konkurs'?'selected':''}>Konkurs</option><option value="kwali" ${c.type==='kwali'?'selected':''}>Kwalifikacje</option><option value="trening" ${c.type==='trening'?'selected':''}>Trening</option><option value="duety" ${c.type==='duety'?'selected':''}>Duety</option><option value="ms" ${c.type==='ms'?'selected':''}>MŚ</option><option value="io" ${c.type==='io'?'selected':''}>IO</option><option value="msl" ${c.type==='msl'?'selected':''}>MŚL</option></select><span class="${isAdmin?'hidden':''}">${c.type.toUpperCase()}</span></td><td>${locCell}</td><td><button class="btn" style="background:var(--primary); color:white;" onclick="openResults('${c.id}','${c.loc}','${c.type}')">Wyniki</button> ${isAdmin?`<button class="btn btn-del" onclick="db.ref('kalendarze/${activeSeasonId}/${c.id}').remove()">X</button>`:''}</td></tr>`; 
         }); 
     }
 
@@ -763,7 +791,10 @@ async function renderHallOfFame() {
     // Przeszukujemy wszystkie wyniki
     for(let sid in allC) {
         for(let cid in allC[sid]) {
-            const comp = allC[sid][cid];
+            
+const comp = allC[sid][cid];
+if (comp.type === 'duety') continue; // Ignoruj duety w Galerii Sław
+            
             const ranked = getRanks(Object.values(allR[cid]||{}));
 
             ranked.forEach(r => {
@@ -899,6 +930,22 @@ function addHoFTable() {
 function toggleHofRows(id) {
     hofExpanded[id] = !hofExpanded[id];
     renderHallOfFame();
+}
+function calcResDuet(rid, f, v) {
+    if(!isAdmin) return;
+    let val = v.trim() === '-' ? '-' : parseFloat(v.replace(',','.')) || 0;
+    
+    db.ref(`wyniki/${activeCompId}/${rid}`).update({[f]: val}).then(() => {
+        db.ref(`wyniki/${activeCompId}/${rid}`).once('value', s => {
+            let d = s.val(), sum = 0;
+            // Sumujemy noty obu zawodników ze wszystkich serii
+            const fields = ['s1', 's1_b', 's2', 's2_b', 's3', 's3_b'];
+            fields.forEach(x => {
+                if(d[x] !== '-' && d[x] !== undefined) sum += parseFloat(d[x] || 0);
+            });
+            db.ref(`wyniki/${activeCompId}/${rid}`).update({total: sum});
+        });
+    });
 }
 </script>
 </script>
