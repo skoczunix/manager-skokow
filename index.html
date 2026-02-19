@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Roboto+Condensed:wght@400;700&display=swap" rel="stylesheet">
     <meta charset="UTF-8">
     <title>Pro Manager Skoków - ULTIMATE SECURE V22 (Live Sync & Records Fix)</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -9,9 +10,402 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <style>
-        :root { --primary: #003366; --accent: #cc0000; --live: #28a745; --light: #f4f7f6; --gold: #ffd700; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--light); color: #333; }
-        .admin-bar { background: #222; color: white; padding: 10px 25px; display: flex; justify-content: space-between; align-items: center; }
+/* --- FIX PEŁNEGO EKRANU DLA IO (USUWANIE BIAŁEJ RAMKI) --- */
+
+/* Gdy body ma klasę 'io-active', usuwamy białe tło głównego kontenera */
+body.io-active .container {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important; /* Rozszerzamy na cały ekran */
+    padding: 10px !important;
+}
+
+/* Ale sam środek z wynikami niech trzyma fason (żeby się nie rozjechał za szeroko) */
+body.io-active #page-results {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Dodatkowo nagłówek "Skoki Narciarskie Kogama" w trybie IO może być ukryty lub zmieniony */
+body.io-active header {
+    display: none; /* Ukrywamy główny nagłówek, bo mamy ten ładny z belki */
+}
+
+body.io-active nav {
+    background: rgba(0,0,0,0.5); /* Ciemniejsza nawigacja */
+    border-bottom: 1px solid #00ffff;
+}
+/* --- FIX WPISYWANIA WYNIKÓW (TABLE CELL EDIT) W IO --- */
+
+/* 1. Wygląd pola, gdy w nie klikniesz (FOCUS) */
+.theme-io td[contenteditable="true"]:focus {
+    /* Zmieniamy to jasne tło na ciemne */
+    background: #001529 !important; 
+    
+    /* Tekst na neonowy błękit, żeby było widać co piszesz */
+    color: #00ffff !important; 
+    
+    /* Neonowa ramka zamiast tej żółtej */
+    outline: 2px solid #00ffff !important; 
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); /* Poświata */
+}
+
+/* 2. Wygląd pola edytowalnego, gdy nie jest aktywne */
+.theme-io td[contenteditable="true"] {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px dashed rgba(0, 255, 255, 0.2) !important; /* Delikatna ramka pomocnicza */
+    color: white !important;
+}
+/* --- FIX PANELU ADMINA (INPUTY I CHECKBOXY) W TRYBIE IO --- */
+
+/* 1. Zmieniamy ten żółty panel na ciemne szkło */
+.theme-io .admin-only.card {
+    background: rgba(0, 15, 30, 0.85) !important; /* Ciemne tło */
+    border: 1px solid rgba(0, 255, 255, 0.3) !important; /* Delikatna cyjanowa ramka */
+    color: #ffffff !important; /* Biały tekst */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6); /* Cień pod panelem */
+}
+
+/* 2. Tekst przy checkboxach (Puchar Świata itp.) */
+.theme-io .admin-only label {
+    color: #b3e5fc !important; /* Jasnoniebieski odcień bieli */
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8); /* Cień pod tekstem dla czytelności */
+    cursor: pointer;
+}
+.theme-io .admin-only label:hover {
+    color: #00ffff !important; /* Po najechaniu świeci na cyjan */
+}
+
+/* 3. Wygląd checkboxów (to małe okienko do zaznaczania) */
+.theme-io input[type="checkbox"] {
+    accent-color: #00ffff; /* Nowoczesne CSS: zmienia kolor "ptaszka" na neonowy */
+    cursor: pointer;
+    transform: scale(1.1); /* Lekko powiększone */
+}
+
+/* 4. Pola wpisywania (Inputy) - np. Limit Q, Nazwiska */
+.theme-io input, 
+.theme-io select,
+.theme-io .search-input {
+    background: rgba(255, 255, 255, 0.1) !important; /* Półprzezroczyste tło */
+    border: 1px solid #007bb5 !important; /* Niebieska ramka */
+    color: #ffffff !important; /* Biały tekst w środku */
+    border-radius: 4px;
+}
+
+/* Efekt po kliknięciu w pole */
+.theme-io input:focus,
+.theme-io select:focus {
+    background: rgba(0, 20, 40, 0.9) !important;
+    border-color: #00ffff !important;
+    outline: none;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+}
+
+/* 5. Przycisk USUWANIA (X) - robimy go w stylu "Alert" */
+.theme-io .btn-del {
+    background: rgba(255, 0, 0, 0.15) !important; /* Przezroczysta czerwień */
+    border: 1px solid #ff3333 !important;
+    color: #ff3333 !important;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+}
+
+.theme-io .btn-del:hover {
+    background: #ff0000 !important; /* Pełna czerwień po najechaniu */
+    color: white !important;
+    box-shadow: 0 0 10px #ff0000;
+    cursor: pointer;
+}
+/* --- FIX PASKA STATUSU DLA TRYBU IO --- */
+.theme-io .live-info {
+    /* Ciemne, szklane tło zamiast żółtego */
+    background: linear-gradient(90deg, rgba(0, 20, 40, 0.8) 0%, rgba(0, 100, 200, 0.6) 100%) !important;
+    
+    /* Biały tekst z lekką poświatą */
+    color: white !important;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+    
+    /* Neonowy pasek z lewej strony zamiast żółtego */
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-left: 6px solid #00ffff !important;
+    
+    /* Odsunięcie i cień, żeby "wisiał" nad tabelą */
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 1.1rem;
+}
+/* --- STYL IGRZYSKA (IO) --- */
+.theme-io {
+    background: radial-gradient(circle at center, #005f9e 0%, #001a33 100%) !important;
+    color: white !important;
+    font-family: 'Roboto', sans-serif; /* Opcjonalnie inna czcionka */
+}
+
+/* Belka tytułowa a'la TV */
+.theme-io #current-comp-title {
+    background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 0 20px 0 20px;
+    box-shadow: 0 0 15px rgba(0, 198, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: left;
+    border-bottom: 2px solid rgba(255,255,255,0.5);
+    margin-bottom: 5px;
+}
+
+/* Tabela w stylu IO */
+.theme-io table {
+    border-collapse: separate;
+    border-spacing: 0 4px; /* Przerwy między wierszami */
+}
+
+.theme-io th {
+    background: rgba(0, 198, 255, 0.2);
+    border: 1px solid rgba(0, 198, 255, 0.4);
+    color: #00ffff;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+}
+
+.theme-io td {
+    background: linear-gradient(90deg, rgba(0, 50, 100, 0.6) 0%, rgba(0, 30, 60, 0.8) 100%);
+    border: none;
+    border-left: 4px solid transparent;
+    color: white;
+    font-weight: bold;
+}
+
+/* Lider ma jasny pasek z lewej */
+.theme-io tr:nth-child(1) td {
+    border-left: 4px solid #00ffff;
+    background: linear-gradient(90deg, rgba(0, 198, 255, 0.3) 0%, rgba(0, 30, 60, 0.8) 100%);
+}
+
+.theme-io .btn { border: 1px solid white; }
+.theme-io input { background: rgba(255,255,255,0.9); }
+/* --- FIXED V2 STYLE (FINAL + BUTTON FIX) --- */
+
+:root { 
+    --primary: #003366; 
+    --glass: rgba(255, 255, 255, 0.95);
+    --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* 1. TŁO - CZYSTY GRADIENT */
+body { 
+    font-family: 'Montserrat', sans-serif; 
+    margin: 0; 
+    color: #1a1a1a;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important; 
+    min-height: 100vh;
+}
+
+/* --- 2. NAPRAWA PASKA ADMINA I PRZYCISKU ZALOGUJ --- */
+.admin-bar {
+    background: #000000 !important; /* Czysta czerń dla kontrastu */
+    color: white !important;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #003366;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+/* Przycisk logowania - teraz musi być widoczny! */
+#auth-btn {
+    background: #ff416c !important; /* Jaskrawy róż/czerwień */
+    color: white !important;
+    border: 2px solid white !important;
+    padding: 5px 15px;
+    border-radius: 20px; /* Zaokrąglony */
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 65, 108, 0.6); /* Świecąca poświata */
+    transition: transform 0.2s;
+}
+#auth-btn:hover {
+    transform: scale(1.05);
+    background: #ff1b4d !important;
+}
+
+/* Status połączenia - jasna zieleń */
+#status {
+    color: #00ff00 !important;
+    font-weight: bold;
+    text-shadow: 0 0 5px #00ff00;
+}
+
+
+/* 3. NAGŁÓWEK */
+header {
+    background: linear-gradient(to bottom, #003366, #001a33) !important;
+    padding: 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+header h1 {
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    text-transform: uppercase;
+    font-weight: 800;
+    margin: 0;
+    font-style: italic;
+    letter-spacing: 1px;
+}
+
+/* --- KARTY I SZKŁO --- */
+.container { 
+    max-width: 1200px; 
+    margin: 0 auto 40px auto; 
+    padding: 10px; 
+    background: transparent !important; 
+    box-shadow: none !important;
+}
+
+.card, table, .event-card, .login-box, #global-standings-admin-list { 
+    background: #ffffff !important; 
+    border-radius: 12px !important; 
+    border: 1px solid #dcdcdc;
+    box-shadow: var(--shadow);
+    color: #003366 !important;
+    margin-bottom: 20px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Animacja najechania */
+.event-card:hover, .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+    border-color: #003366;
+    cursor: pointer;
+}
+
+/* --- TABELE --- */
+th { 
+    background: #003366 !important; 
+    color: white !important; 
+    padding: 12px;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+}
+td {
+    border-bottom: 1px solid #eee !important;
+    padding: 10px;
+    color: #333 !important;
+}
+
+/* --- WYJĄTEK: KOLORY TYLKO W PROFILU (HISTORIA) --- */
+/* Złoto (#ffd700) */
+tr[style*="#ffd700"] td {
+    background: linear-gradient(90deg, #fff9c4 0%, #ffffff 100%) !important;
+    border-left: 5px solid #ffd700 !important;
+    color: #000 !important; font-weight: bold;
+}
+/* Srebro (#c0c0c0) */
+tr[style*="#c0c0c0"] td {
+    background: linear-gradient(90deg, #f0f0f0 0%, #ffffff 100%) !important;
+    border-left: 5px solid #a0a0a0 !important;
+    color: #000 !important; font-weight: bold;
+}
+/* Brąz (#cd7f32) */
+tr[style*="#cd7f32"] td {
+    background: linear-gradient(90deg, #ffe0b2 0%, #ffffff 100%) !important;
+    border-left: 5px solid #cd7f32 !important;
+    color: #000 !important; font-weight: bold;
+}
+
+
+/* --- KARTA REKORDU ŻYCIOWEGO (PB) --- */
+#pb-card-dynamic {
+    background: #ffffff !important;
+    border: 2px solid #003366 !important;
+    color: #003366 !important;
+}
+#pb-card-dynamic h3 { opacity: 0.7; color: #003366 !important; text-shadow: none !important; }
+#pb-card-dynamic div { color: #003366 !important; text-shadow: none !important; }
+
+
+/* --- INPUTY I PRZYCISKI --- */
+input, select, .search-input {
+    background: #fff !important;
+    border: 1px solid #999 !important;
+    color: #000 !important;
+    padding: 8px;
+    border-radius: 4px;
+}
+.btn-add { 
+    background: #003366 !important; 
+    color: white !important; 
+    border: none !important;
+    padding: 10px 20px;
+    text-transform: uppercase;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+.btn-del {
+    background: #d32f2f !important;
+    color: white !important;
+    border: none;
+}
+
+/* ========================================= */
+/* === TRYB IO (IGRZYSKA) - BEZ ZMIAN === */
+/* ========================================= */
+body.io-active {
+    background: #001a33 !important;
+}
+body.io-active .container {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+body.io-active header { display: none !important; }
+
+/* Styl IO */
+.theme-io {
+    background: radial-gradient(circle at center, #005f9e 0%, #001a33 100%) !important;
+    color: white !important;
+    font-family: 'Roboto', sans-serif;
+}
+.theme-io table { border-collapse: separate; border-spacing: 0 4px; background: transparent !important; border: none !important; }
+.theme-io th { background: rgba(0, 198, 255, 0.2) !important; border: 1px solid #00ffff !important; color: #00ffff !important; }
+.theme-io td {
+    background: linear-gradient(90deg, rgba(0, 50, 100, 0.8) 0%, rgba(0, 30, 60, 0.9) 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-left: 4px solid transparent !important;
+}
+.theme-io tr:nth-child(1) td {
+    border-left: 4px solid #00ffff !important;
+    background: linear-gradient(90deg, rgba(0, 198, 255, 0.4) 0%, rgba(0, 30, 60, 0.9) 100%) !important;
+}
+.theme-io input, .theme-io select {
+    background: rgba(0, 20, 40, 0.5) !important;
+    border: 1px solid #00ffff !important;
+    color: white !important;
+}
+.theme-io .btn-add {
+    background: linear-gradient(90deg, #00c6ff 0%, #0072ff 100%) !important;
+    border: 1px solid #00ffff !important;
+    box-shadow: 0 0 15px #00ffff !important;
+}
+.theme-io .live-info {
+    background: linear-gradient(90deg, rgba(0, 20, 40, 0.9) 0%, rgba(0, 100, 200, 0.6) 100%) !important;
+    color: white !important;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+    border-left: 6px solid #00ffff !important;
+}
         nav { background: var(--primary); padding: 12px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
         nav button { background: transparent; border: 1px solid rgba(255,255,255,0.5); color: white; padding: 8px 15px; cursor: pointer; border-radius: 6px; font-weight: bold; }
         header { background: linear-gradient(to bottom, var(--primary), #001a33); color: white; padding: 30px; text-align: center; }
@@ -796,7 +1190,28 @@ window.confirmJumper2 = function(rId, n) {
     db.ref(`wyniki/${activeCompId}/${rId}`).update({name2: n}); 
 };
     window.confirmHill = function(cId, n) { db.ref(`kalendarze/${activeSeasonId}/${cId}`).update({loc: n}); };
-    function showPage(p) { document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden')); document.getElementById(p).classList.remove('hidden'); if(p==='page-standings-selection') refreshStandingsSelection(); if(p==='page-galeria') renderHallOfFame(); }
+   function showPage(p) {
+    // 1. Ukryj wszystkie strony
+    document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
+    
+    // 2. Pokaż wybraną stronę
+    document.getElementById(p).classList.remove('hidden');
+
+    // --- LOGIKA RESETOWANIA MOTYWU IO ---
+    // Jeśli wchodzimy na stronę inną niż wyniki (np. kalendarz, menu główne), czyścimy motyw
+    if (p !== 'page-results') {
+        document.body.classList.remove('io-active'); // Usuwa klasę z body
+        document.body.style.background = "var(--light)"; // Przywraca jasne tło
+        
+        // Resetujemy też klasę w samym divie wyników na wszelki wypadek
+        const pageRes = document.getElementById('page-results');
+        if(pageRes) pageRes.classList.remove('theme-io');
+    }
+    // -------------------------------------
+
+    if (p === 'page-standings-selection') refreshStandingsSelection();
+    if (p === 'page-galeria') renderHallOfFame();
+}
     function openSeason(id, n) { activeSeasonId = id; document.getElementById('tiles-title').innerText = n; showPage('page-season-tiles'); db.ref('kalendarze/'+id).on('value', s => renderCalendar(Object.values(s.val()||{}))); }
     function addSeason() { const n = prompt("Nazwa:"); if(n) db.ref('sezony/'+Date.now()).set({id:Date.now().toString(), name:n}); }
     function addSkoczek() { const n=prompt("Imię:"); if(n) db.ref('skoczkowie/'+Date.now()).set({id: Date.now().toString(), name:n}); }
@@ -838,20 +1253,45 @@ window.confirmJumper2 = function(rId, n) {
     function toggleStatList(id) { const el = document.getElementById(id); el.style.display = (el.style.display==='block')?'none':'block'; }
 
     // STRICT RENDERING: CALENDAR
-    function renderCalendar(data) { 
-        const b = document.getElementById('calendar-body'); b.innerHTML = ''; 
-        data.sort((a,b)=>a.date.localeCompare(b.date)).forEach(c => { 
-            // Secure Loc Input
-            let locCell = '';
-            if(isAdmin) {
-                locCell = `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${c.loc}" oninput="filterLocalList(this, 'list-h-${c.id}')" onfocus="document.getElementById('list-h-${c.id}').style.display='block'"><div id="list-h-${c.id}" class="suggestions-list">${globalHills.map(h => `<div class="suggestion-item" onclick="confirmHill('${c.id}', '${h.name}')">${h.name}</div>`).join('')}</div></div>`;
-            } else {
-                locCell = c.loc;
-            }
+  function renderCalendar(data) { 
+    const b = document.getElementById('calendar-body'); b.innerHTML = ''; 
+    data.sort((a,b)=>a.date.localeCompare(b.date)).forEach(c => { 
+        // Secure Loc Input
+        let locCell = '';
+        if(isAdmin) {
+            locCell = `<div class="dropdown-wrapper"><input type="text" class="search-input" value="${c.loc}" oninput="filterLocalList(this, 'list-h-${c.id}')" onfocus="document.getElementById('list-h-${c.id}').style.display='block'"><div id="list-h-${c.id}" class="suggestions-list">${globalHills.map(h => `<div class="suggestion-item" onclick="confirmHill('${c.id}', '${h.name}')">${h.name}</div>`).join('')}</div></div>`;
+        } else {
+            locCell = c.loc;
+        }
 
-            b.innerHTML += `<tr><td contenteditable="${isAdmin}" onblur="if(isAdmin) db.ref('kalendarze/${activeSeasonId}/${c.id}').update({date:this.innerText})">${c.date}</td><td><select class="${isAdmin?'':'hidden'}" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({type:this.value})"><option value="konkurs" ${c.type==='konkurs'?'selected':''}>Konkurs</option><option value="kwali" ${c.type==='kwali'?'selected':''}>Kwalifikacje</option><option value="trening" ${c.type==='trening'?'selected':''}>Trening</option><option value="duety" ${c.type==='duety'?'selected':''}>Duety</option><option value="ms" ${c.type==='ms'?'selected':''}>MŚ</option><option value="io" ${c.type==='io'?'selected':''}>IO</option><option value="msl" ${c.type==='msl'?'selected':''}>MŚL</option></select><span class="${isAdmin?'hidden':''}">${c.type.toUpperCase()}</span></td><td>${locCell}</td><td><button class="btn" style="background:var(--primary); color:white;" onclick="openResults('${c.id}','${c.loc}','${c.type}')">Wyniki</button> ${isAdmin?`<button class="btn btn-del" onclick="db.ref('kalendarze/${activeSeasonId}/${c.id}').remove()">X</button>`:''}</td></tr>`; 
-        }); 
-    }
+        // --- NOWOŚĆ: Wybór grafiki (theme) ---
+        const themeSelect = isAdmin ? `
+            <select style="font-size:0.8rem; margin-top:5px; border:1px solid #aaa;" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({theme:this.value})">
+                <option value="normal" ${c.theme!=='io'?'selected':''}>📺 Standard</option>
+                <option value="io" ${c.theme==='io'?'selected':''}>🔵 Igrzyska (IO)</option>
+            </select>
+        ` : '';
+        // -------------------------------------
+
+        b.innerHTML += `<tr>
+            <td contenteditable="${isAdmin}" onblur="if(isAdmin) db.ref('kalendarze/${activeSeasonId}/${c.id}').update({date:this.innerText})">${c.date}</td>
+            <td>
+                <select class="${isAdmin?'':'hidden'}" onchange="db.ref('kalendarze/${activeSeasonId}/${c.id}').update({type:this.value})">
+                    <option value="konkurs" ${c.type==='konkurs'?'selected':''}>Konkurs</option>
+                    <option value="kwali" ${c.type==='kwali'?'selected':''}>Kwalifikacje</option>
+                    <option value="trening" ${c.type==='trening'?'selected':''}>Trening</option>
+                    <option value="duety" ${c.type==='duety'?'selected':''}>Duety</option>
+                    <option value="ms" ${c.type==='ms'?'selected':''}>MŚ</option>
+                    <option value="io" ${c.type==='io'?'selected':''}>IO</option>
+                    <option value="msl" ${c.type==='msl'?'selected':''}>MŚL</option>
+                </select>
+                <span class="${isAdmin?'hidden':''}">${c.type.toUpperCase()}</span>
+                <br>${themeSelect} </td>
+            <td>${locCell}</td>
+            <td><button class="btn" style="background:var(--primary); color:white;" onclick="openResults('${c.id}','${c.loc}','${c.type}', '${c.theme||'normal'}')">Wyniki</button> ${isAdmin?`<button class="btn btn-del" onclick="db.ref('kalendarze/${activeSeasonId}/${c.id}').remove()">X</button>`:''}</td>
+        </tr>`; 
+    }); 
+}
 
     // RECORDS RENDERING (WITH DELETE BTN)
     db.ref('osiagniecia_specjalne').on('value', s => refreshRecordsList(s.val()));
@@ -875,7 +1315,42 @@ window.confirmJumper2 = function(rId, n) {
     db.ref('skocznie').on('value', s => { globalHills = Object.values(s.val()||{}); refreshHillList(globalHills); });
     
     db.ref('global_klasyfikacje').on('value', s => { const adminL = document.getElementById('global-standings-admin-list'); if(adminL) { adminL.innerHTML = ''; Object.entries(s.val()||{}).forEach(([id, st]) => adminL.innerHTML += `<div class="card" style="padding:10px;"><b>${st.name}</b> <button class="btn-del" onclick="db.ref('global_klasyfikacje/${id}').remove()">X</button></div>`); } });
-    async function openResults(id, loc, type) { activeCompId = id; activeType = type; document.getElementById('current-comp-title').innerText = loc; showPage('page-results'); refreshResultsView(); const gL = (await db.ref('global_klasyfikacje').once('value')).val() || {}, compD = (await db.ref(`kalendarze/${activeSeasonId}/${id}`).once('value')).val() || {}, checkB = document.getElementById('global-checkboxes'); checkB.innerHTML = ''; Object.entries(gL).forEach(([gid, st]) => { const isC = compD.standings && compD.standings[gid] ? 'checked' : ''; checkB.innerHTML += `<label style="margin-left:10px;"><input type="checkbox" ${isC} onchange="db.ref('kalendarze/${activeSeasonId}/${activeCompId}/standings/${gid}').set(this.checked?true:null)"> ${st.name}</label>`; }); }
+   async function openResults(id, loc, type, theme) {
+    activeCompId = id;
+    activeType = type;
+
+    const pageRes = document.getElementById('page-results');
+    
+    // --- ZMIANA MOTYWU (AKTUALIZACJA) ---
+    if (theme === 'io') {
+        // Dodajemy klasę do BODY - to uruchamia zmianę kontenera na przezroczysty
+        document.body.classList.add('io-active'); 
+        document.body.style.background = "#001a33"; // Ciemne tło strony
+        
+        // Dodajemy styl do tabeli
+        pageRes.classList.add('theme-io');
+    } else {
+        // Tryb standardowy
+        document.body.classList.remove('io-active');
+        document.body.style.background = "var(--light)";
+        pageRes.classList.remove('theme-io');
+    }
+    // ------------------------------------
+
+    document.getElementById('current-comp-title').innerText = loc;
+    showPage('page-results');
+    refreshResultsView();
+
+    // Checkboxy (bez zmian)
+    const gL = (await db.ref('global_klasyfikacje').once('value')).val() || {};
+    const compD = (await db.ref(`kalendarze/${activeSeasonId}/${id}`).once('value')).val() || {};
+    const checkB = document.getElementById('global-checkboxes');
+    checkB.innerHTML = '';
+    Object.entries(gL).forEach(([gid, st]) => {
+        const isC = compD.standings && compD.standings[gid] ? 'checked' : '';
+        checkB.innerHTML += `<label style="margin-left:10px;"><input type="checkbox" ${isC} onchange="db.ref('kalendarze/${activeSeasonId}/${activeCompId}/standings/${gid}').set(this.checked?true:null)"> ${st.name}</label>`;
+    });
+}
     async function refreshStandingsSelection() { const gL = (await db.ref('global_klasyfikacje').once('value')).val() || {}, list = document.getElementById('standings-user-list'); if(!list) return; list.innerHTML = ''; Object.entries(gL).forEach(([gid, st]) => { list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;"><b>${st.name}</b><button class="btn" style="background:var(--primary); color:white;" onclick="viewStanding('${gid}','${st.name}')">Ranking</button></div>`; }); }
 
     document.addEventListener('click', e => { if(!e.target.classList.contains('search-input')) document.querySelectorAll('.suggestions-list').forEach(d => d.style.display = 'none'); });
